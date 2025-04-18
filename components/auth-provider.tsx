@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
-import type { User } from "@/lib/mongodb"
+import type { User } from "@/lib/axiosInstance"
 
 interface AuthContextType {
   user: User | null

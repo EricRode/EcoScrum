@@ -1,0 +1,483 @@
+import axios from 'axios';
+
+// Set up your backend API base URL
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000';  
+
+// Create Axios instance with base URL and headers
+const axiosInstance = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Add request interceptor (optional: to handle request modifications like authentication tokens)
+axiosInstance.interceptors.request.use(
+  (config) => {
+    // You can add authentication tokens here if needed
+    // For example:
+    // const token = localStorage.getItem('authToken');
+    // if (token) {
+    //   config.headers['Authorization'] = `Bearer ${token}`;
+    // }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Add response interceptor (optional: to handle errors globally)
+axiosInstance.interceptors.response.use(
+  (response) => {
+    return response;
+  },
+  (error) => {
+    // Here you can handle errors globally (e.g., show a notification, log out the user)
+    if (error.response && error.response.status === 401) {
+      // Handle unauthorized access
+      // For example: log out user or redirect to login page
+    }
+    return Promise.reject(error);
+  }
+);
+
+export default axiosInstance;
+
+export function addBacklogItem(item: Omit<BacklogItem, "id">) {
+    return axiosInstance.post('/backlog-items', item)  // Adjust endpoint
+      .then(response => response.data)
+      .catch(error => {
+        console.error('Error adding backlog item:', error);
+        throw error;
+      });
+  }
+  
+  export function getAllProjects() {
+    return axiosInstance.get('/projects')  // Adjust endpoint
+      .then(response => response.data)
+      .catch(error => {
+        console.error('Error fetching projects:', error);
+        throw error;
+      });
+  }
+  export function getProjectById(projectId: string) {
+      return axiosInstance.get(`/projects/${projectId}`)  // Adjust endpoint
+        .then(response => response.data)
+        .catch(error => {
+          console.error(`Error fetching project ${projectId}:`, error);
+          throw error;
+        });
+    }
+    
+    export function createProject(projectData: Omit<Project, "id" | "createdAt" | "teamMembers" | "sprints">) {
+      return axiosInstance.post('/projects', projectData)  // Adjust endpoint
+        .then(response => response.data)
+        .catch(error => {
+          console.error('Error creating project:', error);
+          throw error;
+        });
+    }
+    
+    export function addTeamMember(projectId: string, email: string, role: string) {
+      return axiosInstance.get(`/projects/${projectId}`)
+        .then(projectResponse => {
+          const project = projectResponse.data;
+          if (!project) {
+            return Promise.reject(new Error("Project not found"));
+          }
+    
+          return axiosInstance.get(`/users?email=${email}`)  // Assume there's a user endpoint
+            .then(userResponse => {
+              const user = userResponse.data;
+              if (!user) {
+                return Promise.reject(new Error("User not found"));
+              }
+    
+              // Explicitly type 'tm' as TeamMember to resolve the 'any' error
+              if (project.teamMembers.some((tm: TeamMember) => tm.userId === user.id)) {
+                return Promise.reject(new Error("User is already a team member"));
+              }
+    
+              const newTeamMember = {
+                userId: user.id,
+                email: user.email,
+                role,
+                joinedAt: new Date().toISOString(),
+              };
+    
+              return axiosInstance.post(`/projects/${projectId}/team-members`, newTeamMember)  // Adjust endpoint
+                .then(() => newTeamMember);
+            });
+        })
+        .catch(error => {
+          console.error('Error adding team member:', error);
+          throw error;
+        });
+    }
+    
+      
+      export function createSprint(sprint: Omit<Sprint, "id">) {
+        return axiosInstance.post('/sprints', sprint)  // Adjust endpoint
+          .then(response => {
+            const newSprint = response.data;
+            return axiosInstance.patch(`/projects/${sprint.projectId}`, { $push: { sprints: newSprint.id } })  // Add sprint to project
+              .then(() => newSprint);
+          })
+          .catch(error => {
+            console.error('Error creating sprint:', error);
+            throw error;
+          });
+      }
+      
+      export function saveRetrospective(data: any) {
+        return axiosInstance.patch(`/sprints/${data.sprintId}/retrospective`, data)  // Adjust endpoint
+          .then(response => response.data)
+          .catch(error => {
+            console.error('Error saving retrospective:', error);
+            throw error;
+          });
+      }
+      
+      export function updateTaskStatus(taskId: string, newStatus: "To Do" | "In Progress" | "Done") {
+        return axiosInstance.patch(`/tasks/${taskId}`, { status: newStatus })  // Adjust endpoint
+          .then(response => response.data)
+          .catch(error => {
+            console.error(`Error updating task ${taskId}:`, error);
+            throw error;
+          });
+      }
+      
+      export function addTask(task: Omit<Task, "id" | "order">) {
+        return axiosInstance.post('/tasks', task)  // Adjust endpoint
+          .then(response => response.data)
+          .catch(error => {
+            console.error('Error adding task:', error);
+            throw error;
+          });
+      }
+    
+      export function deleteTask(taskId: string) {
+        return axiosInstance.delete(`/tasks/${taskId}`)  // Adjust endpoint
+          .then(() => Promise.resolve())
+          .catch(error => {
+            console.error(`Error deleting task ${taskId}:`, error);
+            throw error;
+          });
+      }
+      
+      export function updateTask(taskId: string, updates: Partial<Task>) {
+        return axiosInstance.patch(`/tasks/${taskId}`, updates)  // Adjust endpoint
+          .then(response => response.data)
+          .catch(error => {
+            console.error(`Error updating task ${taskId}:`, error);
+            throw error;
+          });
+      }
+      export function getUserById(userId: string) {
+        return axiosInstance.get(`/users/${userId}`)  // Adjust endpoint
+          .then(response => response.data)
+          .catch(error => {
+            console.error(`Error fetching user ${userId}:`, error);
+            throw error;
+          });
+      }
+      
+      export function authenticateUser(email: string, password: string) {
+        return axiosInstance.post('/auth/login', { email, password })  // Adjust endpoint
+          .then(response => response.data)
+          .catch(error => {
+            console.error('Error authenticating user:', error);
+            throw error;
+          });
+      }
+      export function getAllSprints(projectId?: string) {
+        const endpoint = `/projects/${projectId}/sprints`;  // Adjust the URL based on whether projectId is provided
+      
+        return axiosInstance.get(endpoint)  // Send GET request to the API
+          .then((response) => response.data)  // Extract and return the data from the response
+          .catch((error) => {
+            console.error('Error fetching sprints:', error);  // Handle errors
+            throw error;  // Rethrow error to be handled by the caller
+          });
+      }
+      
+      import { useState, useEffect } from 'react';
+
+export function useSprintData(sprintId?: string, projectId?: string) {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<any>(null);
+
+  useEffect(() => {
+    let isMounted = true; // Prevent state update if component is unmounted
+
+    const fetchSprints = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const sprints = await getAllSprints(projectId); // Fetch sprints based on projectId
+        let targetSprintId = sprintId;
+
+        // If no sprintId is provided but projectId is, get the latest sprint for the project
+        if (!targetSprintId && projectId) {
+          const projectSprints = sprints.filter((s: any) => s.projectId === projectId);
+          if (projectSprints.length > 0) {
+            targetSprintId = projectSprints[projectSprints.length - 1].id;
+          }
+        }
+
+        // Default to the latest sprint if no sprintId is provided
+        if (!targetSprintId) {
+          targetSprintId = sprints[sprints.length - 1]?.id;
+        }
+
+        const sprint = sprints.find((s: any) => s.id === targetSprintId);
+
+        if (isMounted) {
+          setData(sprint || sprints[sprints.length - 1]); // Return the latest sprint if not found
+        }
+      } catch (err) {
+        if (isMounted) {
+          setError(err); // Handle error if any
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchSprints();
+
+    return () => {
+      isMounted = false; // Cleanup to prevent state update after unmount
+    };
+  }, [sprintId, projectId]);
+
+  return { data, loading, error };
+}
+
+export function getAllTasks() {
+  return axiosInstance.get('/tasks')  // Send GET request to the /tasks endpoint
+    .then(response => response.data)
+    .catch(error => {
+      console.error('Error fetching tasks:', error);
+      throw error;
+    });
+}
+export function useTasksData(sprintId: string, projectId?: string) {
+  const [data, setData] = useState<any[]>([]); // Store tasks data
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<any>(null);
+
+  useEffect(() => {
+    let isMounted = true; // Prevent state update if component is unmounted
+
+    const fetchTasks = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const tasks = await getAllTasks(); // Fetch all tasks
+
+        // Filter tasks by sprintId
+        let filteredTasks = tasks.filter((task: any) => task.sprintId === sprintId);
+
+        // Further filter by projectId if provided
+        if (projectId) {
+          filteredTasks = filteredTasks.filter((task: any) => task.projectId === projectId);
+        }
+
+        if (isMounted) {
+          setData(filteredTasks);
+        }
+      } catch (err) {
+        if (isMounted) {
+          setError(err); // Handle error if any
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchTasks();
+
+    return () => {
+      isMounted = false; // Cleanup to prevent state update after unmount
+    };
+  }, [sprintId, projectId]);
+
+  return { data, loading, error };
+}
+
+export function getAllBacklogItems() {
+  return axiosInstance.get('/backlog-items')  // Send GET request to the /backlog-items endpoint
+    .then(response => response.data)
+    .catch(error => {
+      console.error('Error fetching backlog items:', error);
+      throw error;
+    });
+}
+
+
+export function useBacklogData(projectId?: string) {
+  const [data, setData] = useState<any[]>([]); // Store backlog items data
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<any>(null);
+
+  useEffect(() => {
+    let isMounted = true; // Prevent state update if component is unmounted
+
+    const fetchBacklogItems = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const backlogItems = await getAllBacklogItems(); // Fetch all backlog items
+
+        // Filter backlog items by projectId if provided
+        let filteredBacklogItems = backlogItems;
+        if (projectId) {
+          filteredBacklogItems = backlogItems.filter((item: any) => item.projectId === projectId);
+        }
+
+        if (isMounted) {
+          setData(filteredBacklogItems);
+        }
+      } catch (err) {
+        if (isMounted) {
+          setError(err); // Handle error if any
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchBacklogItems();
+
+    return () => {
+      isMounted = false; // Cleanup to prevent state update after unmount
+    };
+  }, [projectId]);
+
+  return { data, loading, error };
+}
+
+export function getAllUsers() {
+  return axiosInstance.get('/users')  // Adjust the endpoint based on your API
+    .then(response => response.data)
+    .catch(error => {
+      console.error("Error fetching users:", error);
+      throw error;  // Handle error and propagate it
+    });
+}
+
+
+export function completeSprintAndRedirect(sprintId: string) {
+  console.log("Completing sprint:", sprintId);
+
+  // Make an API call to complete the sprint (Assuming the endpoint is /sprints/{id}/complete)
+  return axiosInstance.patch(`/sprints/${sprintId}/complete`)  // Adjust the endpoint based on your backend
+    .then(response => {
+      console.log("Sprint completed successfully:", response.data);
+
+      // Redirect to a new page after completing the sprint
+      // You can use Next.js' router to redirect (if in a Next.js app)
+      window.location.href = "/dashboard";  // Adjust the redirect URL as needed
+    })
+    .catch(error => {
+      console.error("Error completing sprint:", error);
+      throw error; // Handle the error and propagate it
+    });
+}
+
+      import type { PRIORITY_LEVELS, TASK_STATUSES, SusafCategory } from "./constants"
+      
+      export interface User {
+        id: string
+        name: string
+        email: string
+        avatar?: string
+      }
+      
+      export interface TeamMember {
+        userId: string
+        role: string
+        email: string
+        joinedAt: string
+      }
+      
+      export interface Project {
+        id: string
+        name: string
+        description: string
+        createdAt: string
+        createdBy: string
+        teamMembers: TeamMember[]
+        sprints: string[] // Sprint IDs
+      }
+      
+      export interface Task {
+        id: string
+        title: string
+        description: string
+        priority: (typeof PRIORITY_LEVELS)[number]
+        sustainabilityContext: string
+        status: (typeof TASK_STATUSES)[number]
+        comments: number
+        subtasks: number
+        sustainabilityWeight: number
+        assignedTo?: string
+        sprintId: string
+        storyPoints: number
+        sustainabilityPoints: number
+        relatedSusafEffects?: string[]
+        definitionOfDone?: string
+        tags?: string[]
+        sustainable: boolean
+        susafCategory?: SusafCategory
+        order: number
+        projectId: string
+      }
+      
+      export interface Sprint {
+        id: string
+        name: string
+        goal: string
+        startDate: string
+        endDate: string
+        progress: number
+        sustainabilityScore: number
+        previousScore: number
+        effectsTackled: number
+        tasks: string[] // Task IDs
+        projectId: string
+        retrospective?: {
+          goalMet: "Yes" | "No" | "Partially"
+          inefficientProcesses: string
+          improvements: string
+          teamNotes: string
+        }
+      }
+      
+      export interface BacklogItem {
+        id: string
+        title: string
+        description: string
+        priority: (typeof PRIORITY_LEVELS)[number]
+        sustainable: boolean
+        storyPoints: number
+        sustainabilityScore: number
+        status: (typeof TASK_STATUSES)[number]
+        susafCategory?: SusafCategory
+        assignedTo?: string
+        sprintId?: string
+        projectId: string
+        sustainabilityPoints?: number
+        relatedSusafEffects?: string[]
+        definitionOfDone?: string
+        tags?: string[]
+      }

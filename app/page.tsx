@@ -10,7 +10,7 @@ import { useSprintContext } from "@/components/sprint-context"
 import { useProjectContext } from "@/components/project-context"
 import { useRouter } from "next/navigation"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { getAllSprints, useSprintData, useTasksData } from "@/lib/mongodb"
+import { getAllSprints, useSprintData, useTasksData } from "@/lib/axiosInstance"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
 import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart"
 import {
@@ -42,12 +42,25 @@ export default function Dashboard() {
     description: "",
   })
 
-  // Get all sprints for the selected project
-  const projectSprints = useMemo(() => {
-    if (!selectedProjectId) return []
-    return getAllSprints(selectedProjectId)
-  }, [selectedProjectId])
+ 
 
+  const [projectSprints, setProjectSprints] = useState<any[]>([])
+
+  useEffect(() => {
+    if (!selectedProjectId) return
+  
+    const fetchSprints = async () => {
+      try {
+        const sprints = await getAllSprints(selectedProjectId)
+        setProjectSprints(sprints)
+      } catch (error) {
+        console.error('Failed to fetch sprints:', error)
+      }
+    }
+  
+    fetchSprints()
+  }, [selectedProjectId])
+  
   // Get the selected sprint data
   const { data: sprint, loading: sprintLoading } = useSprintData(selectedSprintId, selectedProjectId)
 
@@ -80,7 +93,7 @@ export default function Dashboard() {
 
   // Prepare data for the sustainability trend chart
   const trendChartData = useMemo(() => {
-    return projectSprints.map((sprint) => ({
+    return projectSprints.map((sprint: { name: string; sustainabilityScore: any; previousScore: any }) => ({
       name: sprint.name.split("#")[1] ? `Sprint ${sprint.name.split("#")[1]}` : sprint.name,
       score: sprint.sustainabilityScore,
       previousScore: sprint.previousScore,

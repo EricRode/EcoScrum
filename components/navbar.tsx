@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { getAllSprints } from "@/lib/mongodb"
+import { getAllSprints } from "@/lib/axiosInstance"
 import { useMemo, useState } from "react"
 import {
   Dialog,

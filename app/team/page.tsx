@@ -20,7 +20,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { getUserById } from "@/lib/mongodb"
+import { getUserById } from "@/lib/axiosInstance"
 import { Plus, UserPlus } from "lucide-react"
 
 export default function TeamPage() {

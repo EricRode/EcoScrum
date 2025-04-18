@@ -1,7 +1,6 @@
 "use client"
-
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
-import { getAllProjects, createProject, addTeamMember, type Project } from "@/lib/mongodb"
+import { getAllProjects, createProject, addTeamMember, type Project } from "@/lib/axiosInstance"
 
 interface ProjectContextType {
   projects: Project[]
@@ -32,11 +31,11 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     const loadProjects = async () => {
       setLoading(true)
       try {
-        const allProjects = getAllProjects()
+        const allProjects: Project[] = await getAllProjects() // Explicitly typing allProjects as Project[]
         setProjects(allProjects)
 
         const storedProjectId = localStorage.getItem("selectedProjectId")
-        if (storedProjectId && allProjects.some((p) => p.id === storedProjectId)) {
+        if (storedProjectId && allProjects.some((p) => p.id === storedProjectId)) { // Now TypeScript knows p is of type Project
           setSelectedProjectId(storedProjectId)
         } else if (allProjects.length > 0) {
           // Default to the first project if no valid project is selected
@@ -62,7 +61,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   const createNewProject = async (name: string, description: string) => {
     try {
-      const newProject = await createProject({ name, description })
+      const newProject = await createProject({ name, description, createdBy: "user-123" })
       setProjects((prev) => [...prev, newProject])
       return newProject
     } catch (error) {
@@ -75,7 +74,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     try {
       await addTeamMember(projectId, email, role)
       // Refresh projects to get updated team members
-      const updatedProjects = getAllProjects()
+      const updatedProjects = await getAllProjects() // Ensure it's awaited
       setProjects(updatedProjects)
     } catch (error) {
       console.error("Error inviting team member:", error)

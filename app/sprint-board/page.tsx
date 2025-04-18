@@ -30,7 +30,7 @@ import {
   getAllSprints,
   createSprint,
   type Task,
-} from "@/lib/mongodb"
+} from "@/lib/axiosInstance"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
 import { useSprintContext } from "@/components/sprint-context"

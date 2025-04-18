@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
-import { getAllSprints } from "@/lib/mongodb"
+import { getAllSprints } from "@/lib/axiosInstance"
 import { useProjectContext } from "./project-context"
 
 interface SprintContextType {
@@ -25,23 +25,27 @@ export function SprintProvider({ children }: { children: ReactNode }) {
 
   // Load the selected sprint from localStorage on initial render
   useEffect(() => {
-    if (projectLoading || !selectedProjectId) return
+    const fetchSprints = async () => {
+      if (projectLoading || !selectedProjectId) return
 
-    const storedSprintId = localStorage.getItem(`selectedSprintId:${selectedProjectId}`)
-    const projectSprints = getAllSprints(selectedProjectId)
+      const storedSprintId = localStorage.getItem(`selectedSprintId:${selectedProjectId}`)
+      const projectSprints = await getAllSprints(selectedProjectId)  // Await the promise here
 
-    if (storedSprintId && projectSprints.some((s) => s.id === storedSprintId)) {
-      setSelectedSprintId(storedSprintId)
-    } else if (projectSprints.length > 0) {
-      // Default to the latest sprint for the project
-      const latestSprint = projectSprints[projectSprints.length - 1]
-      setSelectedSprintId(latestSprint.id)
-      localStorage.setItem(`selectedSprintId:${selectedProjectId}`, latestSprint.id)
-    } else {
-      // Clear selection if no sprints exist for this project
-      setSelectedSprintId("")
-      localStorage.removeItem(`selectedSprintId:${selectedProjectId}`)
+      if (storedSprintId && projectSprints.some((s: { id: string }) => s.id === storedSprintId)) {
+        setSelectedSprintId(storedSprintId)
+      } else if (projectSprints.length > 0) {
+        // Default to the latest sprint for the project
+        const latestSprint = projectSprints[projectSprints.length - 1]
+        setSelectedSprintId(latestSprint.id)
+        localStorage.setItem(`selectedSprintId:${selectedProjectId}`, latestSprint.id)
+      } else {
+        // Clear selection if no sprints exist for this project
+        setSelectedSprintId("")
+        localStorage.removeItem(`selectedSprintId:${selectedProjectId}`)
+      }
     }
+
+    fetchSprints()  // Fetch the sprints when the effect runs
   }, [selectedProjectId, projectLoading])
 
   // Save the selected sprint to localStorage whenever it changes

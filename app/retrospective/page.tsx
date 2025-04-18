@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState, useEffect, useMemo } from "react"
-import { useSprintData, saveRetrospective, getAllSprints } from "@/lib/mongodb"
+import { useSprintData, saveRetrospective, getAllSprints } from "@/lib/axiosInstance"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/components/auth-provider"
 import { useSprintContext } from "@/components/sprint-context"
