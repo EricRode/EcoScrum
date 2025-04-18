@@ -5,7 +5,7 @@ import {
   TeamMember,
   Project,
   Sprint,
-  WorkItem,
+  Item,
   PRIORITY_LEVELS,
   TASK_STATUSES,
   SusafCategory,
@@ -241,7 +241,7 @@ const mockSprints: Sprint[] = [
 ]
 
 // Update tasks with projectId
-const mockPastTasks: WorkItem[] = [
+const mockPastTasks: Item[] = [
   // Sprint 22 tasks
   {
     id: "task-past-1",
@@ -466,7 +466,7 @@ const mockPastTasks: WorkItem[] = [
 ]
 
 // Update mockTasks with projectId
-const mockTasks: WorkItem[] = [
+const mockTasks: Item[] = [
   {
     id: "task-1",
     title: "Implement API response caching to reduce repeated external requests",
@@ -592,7 +592,7 @@ const mockTasks: WorkItem[] = [
 ]
 
 // Update backlog items with projectId
-const mockBacklogItems: WorkItem[] = [
+const mockBacklogItems: Item[] = [
   {
     id: "backlog-1",
     title: "Implement screen reader",
@@ -937,7 +937,7 @@ export function saveRetrospective(data: {
   return Promise.resolve()
 }
 
-export function addBacklogItem(item: Omit<WorkItem, "id">): Promise<WorkItem> {
+export function addBacklogItem(item: Omit<Item, "id">): Promise<Item> {
   console.log("Adding backlog item", item)
 
   // Add to cached backlog items
@@ -950,7 +950,7 @@ export function addBacklogItem(item: Omit<WorkItem, "id">): Promise<WorkItem> {
   return Promise.resolve(newItem)
 }
 
-export function addTask(task: Omit<WorkItem, "id" | "order">): Promise<WorkItem> {
+export function addTask(task: Omit<Item, "id" | "order">): Promise<Item> {
   console.log("Adding task", task)
 
   // Add to cached tasks
@@ -975,7 +975,7 @@ export function deleteTask(taskId: string): Promise<void> {
   return Promise.resolve()
 }
 
-export function updateTask(taskId: string, updates: Partial<WorkItem>): Promise<void> {
+export function updateTask(taskId: string, updates: Partial<Item>): Promise<void> {
   console.log("Updating task", taskId, updates)
   // Update the cached task
   const taskIndex = cachedTasks.findIndex((t) => t.id === taskId)

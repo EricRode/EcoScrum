@@ -96,7 +96,7 @@ export interface Sprint {
 }
  */
 // WorkItem type
-export interface WorkItem {
+export interface Item {
   id: string;
   title: string;
   description: string;
@@ -131,13 +131,13 @@ export interface SprintDataResult {
 }
 
 export interface TasksDataResult {
-  data: WorkItem[];
+  data: Item[];
   loading: boolean;
   error: null | Error;
 }
 
 export interface BacklogDataResult {
-  data: WorkItem[];
+  data: Item[];
   loading: boolean;
   error: null | Error;
 }
