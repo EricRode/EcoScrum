@@ -1,92 +1,18 @@
 // This is a mock implementation for MongoDB
 // In a real application, you would use the MongoDB driver or an ORM like Mongoose
-import type { PRIORITY_LEVELS, TASK_STATUSES, SusafCategory } from "./constants"
-
-export interface User {
-  id: string
-  name: string
-  email: string
-  avatar?: string
-}
-
-export interface TeamMember {
-  userId: string
-  role: string
-  email: string
-  joinedAt: string
-}
-
-export interface Project {
-  id: string
-  name: string
-  description: string
-  createdAt: string
-  createdBy: string
-  teamMembers: TeamMember[]
-  sprints: string[] // Sprint IDs
-}
-
-export interface Task {
-  id: string
-  title: string
-  description: string
-  priority: (typeof PRIORITY_LEVELS)[number]
-  sustainabilityContext: string
-  status: (typeof TASK_STATUSES)[number]
-  comments: number
-  subtasks: number
-  sustainabilityWeight: number
-  assignedTo?: string
-  sprintId: string
-  storyPoints: number
-  sustainabilityPoints: number
-  relatedSusafEffects?: string[]
-  definitionOfDone?: string
-  tags?: string[]
-  sustainable: boolean
-  susafCategory?: SusafCategory
-  order: number
-  projectId: string
-}
-
-export interface Sprint {
-  id: string
-  name: string
-  goal: string
-  startDate: string
-  endDate: string
-  progress: number
-  sustainabilityScore: number
-  previousScore: number
-  effectsTackled: number
-  tasks: string[] // Task IDs
-  projectId: string
-  retrospective?: {
-    goalMet: "Yes" | "No" | "Partially"
-    inefficientProcesses: string
-    improvements: string
-    teamNotes: string
-  }
-}
-
-export interface BacklogItem {
-  id: string
-  title: string
-  description: string
-  priority: (typeof PRIORITY_LEVELS)[number]
-  sustainable: boolean
-  storyPoints: number
-  sustainabilityScore: number
-  status: (typeof TASK_STATUSES)[number]
-  susafCategory?: SusafCategory
-  assignedTo?: string
-  sprintId?: string
-  projectId: string
-  sustainabilityPoints?: number
-  relatedSusafEffects?: string[]
-  definitionOfDone?: string
-  tags?: string[]
-}
+import {
+  User,
+  TeamMember,
+  Project,
+  Sprint,
+  WorkItem,
+  PRIORITY_LEVELS,
+  TASK_STATUSES,
+  SusafCategory,
+  SprintDataResult,
+  TasksDataResult,
+  BacklogDataResult
+} from '../mongodb.types'
 
 // Mock users
 const mockUsers: User[] = [
@@ -315,7 +241,7 @@ const mockSprints: Sprint[] = [
 ]
 
 // Update tasks with projectId
-const mockPastTasks: Task[] = [
+const mockPastTasks: WorkItem[] = [
   // Sprint 22 tasks
   {
     id: "task-past-1",
@@ -326,11 +252,10 @@ const mockPastTasks: Task[] = [
     status: "Done",
     comments: 5,
     subtasks: 3,
-    sustainabilityWeight: 7,
+    sustainabilityScore: 7,
     assignedTo: "user-1",
     sprintId: "sprint-22",
     storyPoints: 8,
-    sustainabilityPoints: 7,
     sustainable: true,
     susafCategory: "Technical",
     order: 0,
@@ -345,11 +270,10 @@ const mockPastTasks: Task[] = [
     status: "Done",
     comments: 2,
     subtasks: 1,
-    sustainabilityWeight: 5,
+    sustainabilityScore: 5,
     assignedTo: "user-2",
     sprintId: "sprint-22",
     storyPoints: 3,
-    sustainabilityPoints: 5,
     sustainable: true,
     susafCategory: "Technical",
     order: 1,
@@ -364,11 +288,10 @@ const mockPastTasks: Task[] = [
     status: "Done",
     comments: 3,
     subtasks: 0,
-    sustainabilityWeight: 2,
+    sustainabilityScore: 2,
     assignedTo: "user-3",
     sprintId: "sprint-22",
     storyPoints: 2,
-    sustainabilityPoints: 2,
     sustainable: false,
     order: 2,
     projectId: "project-1",
@@ -384,11 +307,10 @@ const mockPastTasks: Task[] = [
     status: "Done",
     comments: 4,
     subtasks: 2,
-    sustainabilityWeight: 8,
+    sustainabilityScore: 8,
     assignedTo: "user-1",
     sprintId: "sprint-23",
     storyPoints: 5,
-    sustainabilityPoints: 8,
     sustainable: true,
     susafCategory: "Technical",
     order: 0,
@@ -403,11 +325,10 @@ const mockPastTasks: Task[] = [
     status: "Done",
     comments: 3,
     subtasks: 1,
-    sustainabilityWeight: 7,
+    sustainabilityScore: 7,
     assignedTo: "user-2",
     sprintId: "sprint-23",
     storyPoints: 8,
-    sustainabilityPoints: 7,
     sustainable: true,
     susafCategory: "Technical",
     order: 1,
@@ -422,11 +343,10 @@ const mockPastTasks: Task[] = [
     status: "Done",
     comments: 2,
     subtasks: 0,
-    sustainabilityWeight: 2,
+    sustainabilityScore: 2,
     assignedTo: "user-3",
     sprintId: "sprint-23",
     storyPoints: 3,
-    sustainabilityPoints: 2,
     sustainable: false,
     order: 2,
     projectId: "project-1",
@@ -442,11 +362,10 @@ const mockPastTasks: Task[] = [
     status: "Done",
     comments: 4,
     subtasks: 2,
-    sustainabilityWeight: 6,
+    sustainabilityScore: 6,
     assignedTo: "user-1",
     sprintId: "sprint-21",
     storyPoints: 5,
-    sustainabilityPoints: 6,
     sustainable: true,
     susafCategory: "Technical",
     order: 0,
@@ -461,11 +380,10 @@ const mockPastTasks: Task[] = [
     status: "Done",
     comments: 2,
     subtasks: 1,
-    sustainabilityWeight: 5,
+    sustainabilityScore: 5,
     assignedTo: "user-2",
     sprintId: "sprint-21",
     storyPoints: 3,
-    sustainabilityPoints: 5,
     sustainable: true,
     susafCategory: "Technical",
     order: 1,
@@ -480,11 +398,10 @@ const mockPastTasks: Task[] = [
     status: "Done",
     comments: 1,
     subtasks: 0,
-    sustainabilityWeight: 3,
+    sustainabilityScore: 3,
     assignedTo: "user-3",
     sprintId: "sprint-21",
     storyPoints: 2,
-    sustainabilityPoints: 3,
     sustainable: true,
     susafCategory: "Communication",
     order: 2,
@@ -501,11 +418,10 @@ const mockPastTasks: Task[] = [
     status: "Done",
     comments: 5,
     subtasks: 3,
-    sustainabilityWeight: 6,
+    sustainabilityScore: 6,
     assignedTo: "user-1",
     sprintId: "sprint-20",
     storyPoints: 8,
-    sustainabilityPoints: 6,
     sustainable: true,
     susafCategory: "Technical",
     order: 0,
@@ -520,11 +436,10 @@ const mockPastTasks: Task[] = [
     status: "Done",
     comments: 3,
     subtasks: 2,
-    sustainabilityWeight: 5,
+    sustainabilityScore: 5,
     assignedTo: "user-2",
     sprintId: "sprint-20",
     storyPoints: 5,
-    sustainabilityPoints: 5,
     sustainable: true,
     susafCategory: "Technical",
     order: 1,
@@ -539,11 +454,10 @@ const mockPastTasks: Task[] = [
     status: "Done",
     comments: 2,
     subtasks: 0,
-    sustainabilityWeight: 3,
+    sustainabilityScore: 3,
     assignedTo: "user-3",
     sprintId: "sprint-20",
     storyPoints: 2,
-    sustainabilityPoints: 3,
     sustainable: true,
     susafCategory: "Communication",
     order: 2,
@@ -552,7 +466,7 @@ const mockPastTasks: Task[] = [
 ]
 
 // Update mockTasks with projectId
-const mockTasks: Task[] = [
+const mockTasks: WorkItem[] = [
   {
     id: "task-1",
     title: "Implement API response caching to reduce repeated external requests",
@@ -562,11 +476,10 @@ const mockTasks: Task[] = [
     status: "To Do",
     comments: 3,
     subtasks: 2,
-    sustainabilityWeight: 8,
+    sustainabilityScore: 8,
     assignedTo: "user-1",
     sprintId: "sprint-24",
     storyPoints: 5,
-    sustainabilityPoints: 8,
     definitionOfDone: "Cache implementation reduces API calls by at least 30% in test environment",
     sustainable: true,
     susafCategory: "Technical",
@@ -583,11 +496,10 @@ const mockTasks: Task[] = [
     status: "In Progress",
     comments: 2,
     subtasks: 3,
-    sustainabilityWeight: 6,
+    sustainabilityScore: 6,
     assignedTo: "user-2",
     sprintId: "sprint-24",
     storyPoints: 8,
-    sustainabilityPoints: 6,
     definitionOfDone: "All user input forms implement debounce with 300ms delay",
     sustainable: true,
     susafCategory: "Technical",
@@ -604,11 +516,10 @@ const mockTasks: Task[] = [
     status: "Done",
     comments: 1,
     subtasks: 0,
-    sustainabilityWeight: 5,
+    sustainabilityScore: 5,
     assignedTo: "user-3",
     sprintId: "sprint-24",
     storyPoints: 3,
-    sustainabilityPoints: 5,
     definitionOfDone: "All test environments use mock data instead of live API calls",
     sustainable: true,
     susafCategory: "Technical",
@@ -626,11 +537,10 @@ const mockTasks: Task[] = [
     status: "To Do",
     comments: 0,
     subtasks: 2,
-    sustainabilityWeight: 3,
+    sustainabilityScore: 3,
     assignedTo: "user-1",
     sprintId: "sprint-24",
     storyPoints: 3,
-    sustainabilityPoints: 0,
     definitionOfDone: "UI displays correctly in French and Spanish with all translations reviewed",
     sustainable: false,
     susafCategory: "Human",
@@ -647,11 +557,10 @@ const mockTasks: Task[] = [
     status: "To Do",
     comments: 5,
     subtasks: 1,
-    sustainabilityWeight: 5,
+    sustainabilityScore: 5,
     assignedTo: "user-2",
     sprintId: "sprint-24",
     storyPoints: 5,
-    sustainabilityPoints: 9,
     definitionOfDone: "Audit completed and at least 5 unnecessary API calls removed",
     sustainable: true,
     susafCategory: "Environmental",
@@ -669,11 +578,10 @@ const mockTasks: Task[] = [
     status: "To Do",
     comments: 2,
     subtasks: 0,
-    sustainabilityWeight: 2,
+    sustainabilityScore: 2,
     assignedTo: "user-3",
     sprintId: "sprint-24",
     storyPoints: 2,
-    sustainabilityPoints: 0,
     definitionOfDone: "New design implemented and approved by design team",
     sustainable: false,
     susafCategory: "Human",
@@ -684,7 +592,7 @@ const mockTasks: Task[] = [
 ]
 
 // Update backlog items with projectId
-const mockBacklogItems: BacklogItem[] = [
+const mockBacklogItems: WorkItem[] = [
   {
     id: "backlog-1",
     title: "Implement screen reader",
@@ -696,7 +604,6 @@ const mockBacklogItems: BacklogItem[] = [
     status: "In Progress",
     susafCategory: "Human",
     assignedTo: "user-1",
-    sustainabilityPoints: 8,
     relatedSusafEffects: ["Accessibility", "Inclusivity"],
     definitionOfDone: "Screen reader successfully reads all UI elements",
     projectId: "project-1",
@@ -726,7 +633,6 @@ const mockBacklogItems: BacklogItem[] = [
     sustainabilityScore: 7,
     status: "To Do",
     susafCategory: "Technical",
-    sustainabilityPoints: 7,
     relatedSusafEffects: ["Performance Improvement", "Energy Efficiency"],
     definitionOfDone: "Algorithm performance improved by 30%",
     projectId: "project-1",
@@ -742,7 +648,6 @@ const mockBacklogItems: BacklogItem[] = [
     sustainabilityScore: 8,
     status: "To Do",
     susafCategory: "Technical",
-    sustainabilityPoints: 8,
     definitionOfDone: "Cache hit rate of at least 70%",
     projectId: "project-1",
     sprintId: "sprint-21",
@@ -771,7 +676,6 @@ const mockBacklogItems: BacklogItem[] = [
     sustainabilityScore: 7,
     status: "To Do",
     susafCategory: "Environmental",
-    sustainabilityPoints: 7,
     definitionOfDone: "Image size reduced by at least 40% with acceptable quality",
     projectId: "project-2",
     sprintId: "sprint-21",
@@ -800,7 +704,6 @@ const mockBacklogItems: BacklogItem[] = [
     sustainabilityScore: 9,
     status: "To Do",
     susafCategory: "Technical",
-    sustainabilityPoints: 9,
     definitionOfDone: "Bundle size reduced by at least 25%",
     projectId: "project-1",
     sprintId: "sprint-23",
@@ -815,7 +718,6 @@ const mockBacklogItems: BacklogItem[] = [
     sustainabilityScore: 6,
     status: "To Do",
     susafCategory: "Social",
-    sustainabilityPoints: 6,
     definitionOfDone: "App functions offline and syncs when connection is restored",
     projectId: "project-1",
     sprintId: "sprint-23",
@@ -858,7 +760,6 @@ const mockBacklogItems: BacklogItem[] = [
     sustainabilityScore: 8,
     status: "To Do",
     susafCategory: "Technical",
-    sustainabilityPoints: 8,
     definitionOfDone: "Query performance improved by at least 50%",
     projectId: "project-1",
     sprintId: "sprint-24",
@@ -873,15 +774,15 @@ const cachedBacklogItems = [...mockBacklogItems]
 const cachedUsers = [...mockUsers]
 
 // Project-related functions
-export function getAllProjects() {
+export function getAllProjects(): Project[] {
   return cachedProjects
 }
 
-export function getProjectById(projectId: string) {
+export function getProjectById(projectId: string): Project | undefined {
   return cachedProjects.find((p) => p.id === projectId)
 }
 
-export function createProject(projectData: Omit<Project, "id" | "createdAt" | "teamMembers" | "sprints">) {
+export function createProject(projectData: Omit<Project, "id" | "createdAt" | "teamMembers" | "sprints">): Promise<Project> {
   const newProject: Project = {
     id: `project-${cachedProjects.length + 1}`,
     createdAt: new Date().toISOString(),
@@ -894,7 +795,7 @@ export function createProject(projectData: Omit<Project, "id" | "createdAt" | "t
   return Promise.resolve(newProject)
 }
 
-export function addTeamMember(projectId: string, email: string, role: string) {
+export function addTeamMember(projectId: string, email: string, role: string): Promise<void> {
   const project = cachedProjects.find((p) => p.id === projectId)
   if (!project) {
     return Promise.reject(new Error("Project not found"))
@@ -923,7 +824,7 @@ export function addTeamMember(projectId: string, email: string, role: string) {
 }
 
 // Sprint-related functions
-export function useSprintData(sprintId?: string, projectId?: string) {
+export function useSprintData(sprintId?: string, projectId?: string): SprintDataResult {
   let targetSprintId = sprintId
 
   // If no sprintId is provided but projectId is, get the latest sprint for the project
@@ -948,14 +849,14 @@ export function useSprintData(sprintId?: string, projectId?: string) {
   }
 }
 
-export function getAllSprints(projectId?: string) {
+export function getAllSprints(projectId?: string): Sprint[] {
   if (projectId) {
     return cachedSprints.filter((s) => s.projectId === projectId)
   }
   return cachedSprints
 }
 
-export function useTasksData(sprintId: string, projectId?: string) {
+export function useTasksData(sprintId: string, projectId?: string): TasksDataResult {
   // Filter tasks by sprintId and optionally by projectId
   let filteredTasks = cachedTasks.filter((task) => task.sprintId === sprintId)
 
@@ -970,7 +871,7 @@ export function useTasksData(sprintId: string, projectId?: string) {
   }
 }
 
-export function useBacklogData(projectId?: string) {
+export function useBacklogData(projectId?: string): BacklogDataResult {
   let data = cachedBacklogItems
 
   if (projectId) {
@@ -984,7 +885,7 @@ export function useBacklogData(projectId?: string) {
   }
 }
 
-export function updateTaskStatus(taskId: string, newStatus: "To Do" | "In Progress" | "Done") {
+export function updateTaskStatus(taskId: string, newStatus: "To Do" | "In Progress" | "Done"): Promise<void> {
   console.log(`Updating task ${taskId} to ${newStatus}`)
 
   // Update the cached task
@@ -996,7 +897,7 @@ export function updateTaskStatus(taskId: string, newStatus: "To Do" | "In Progre
   return Promise.resolve()
 }
 
-export function updateTaskOrder(taskId: string, newOrder: number) {
+export function updateTaskOrder(taskId: string, newOrder: number): Promise<void> {
   console.log(`Updating task ${taskId} order to ${newOrder}`)
 
   // Update the cached task
@@ -1008,12 +909,18 @@ export function updateTaskOrder(taskId: string, newOrder: number) {
   return Promise.resolve()
 }
 
-export function completeSprintAndRedirect() {
+export function completeSprintAndRedirect(): Promise<void> {
   console.log("Completing sprint")
   return Promise.resolve()
 }
 
-export function saveRetrospective(data: any) {
+export function saveRetrospective(data: {
+  sprintId: string;
+  goalMet: "Yes" | "No" | "Partially";
+  inefficientProcesses: string;
+  improvements: string;
+  teamNotes: string;
+}): Promise<void> {
   console.log("Saving retrospective", data)
 
   // Update the cached sprint
@@ -1030,7 +937,7 @@ export function saveRetrospective(data: any) {
   return Promise.resolve()
 }
 
-export function addBacklogItem(item: Omit<BacklogItem, "id">) {
+export function addBacklogItem(item: Omit<WorkItem, "id">): Promise<WorkItem> {
   console.log("Adding backlog item", item)
 
   // Add to cached backlog items
@@ -1043,7 +950,7 @@ export function addBacklogItem(item: Omit<BacklogItem, "id">) {
   return Promise.resolve(newItem)
 }
 
-export function addTask(task: Omit<Task, "id" | "order">) {
+export function addTask(task: Omit<WorkItem, "id" | "order">): Promise<WorkItem> {
   console.log("Adding task", task)
 
   // Add to cached tasks
@@ -1057,7 +964,7 @@ export function addTask(task: Omit<Task, "id" | "order">) {
   return Promise.resolve(newTask)
 }
 
-export function deleteTask(taskId: string) {
+export function deleteTask(taskId: string): Promise<void> {
   console.log("Deleting task", taskId)
   // Remove from cached tasks
   const taskIndex = cachedTasks.findIndex((t) => t.id === taskId)
@@ -1068,7 +975,7 @@ export function deleteTask(taskId: string) {
   return Promise.resolve()
 }
 
-export function updateTask(taskId: string, updates: Partial<Task>) {
+export function updateTask(taskId: string, updates: Partial<WorkItem>): Promise<void> {
   console.log("Updating task", taskId, updates)
   // Update the cached task
   const taskIndex = cachedTasks.findIndex((t) => t.id === taskId)
@@ -1080,7 +987,7 @@ export function updateTask(taskId: string, updates: Partial<Task>) {
 }
 
 // Add new functions for project management
-export function createSprint(sprint: Omit<Sprint, "id">) {
+export function createSprint(sprint: Omit<Sprint, "id">): Promise<Sprint> {
   const newSprint = {
     id: `sprint-${cachedSprints.length + 25}`,
     ...sprint,
@@ -1097,15 +1004,15 @@ export function createSprint(sprint: Omit<Sprint, "id">) {
   return Promise.resolve(newSprint)
 }
 
-export function getUserById(userId: string) {
+export function getUserById(userId: string): User | null {
   return cachedUsers.find((user) => user.id === userId) || null
 }
 
-export function getAllUsers() {
+export function getAllUsers(): User[] {
   return cachedUsers
 }
 
-export function authenticateUser(email: string, password: string) {
+export function authenticateUser(email: string, password: string): Promise<User> {
   // Mock authentication 
   const user = cachedUsers.find((user) => user.email === email)
   if (user && password === "password") {
