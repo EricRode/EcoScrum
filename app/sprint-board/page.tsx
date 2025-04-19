@@ -621,7 +621,7 @@ useEffect(() => {
 
         {/* Task Edit Dialog */}
         <Dialog open={isTaskDialogOpen} onOpenChange={setIsTaskDialogOpen}>
-          <DialogContent className="sm:max-w-[600px]">
+          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{selectedTask?.title}</DialogTitle>
               <DialogDescription>View and edit task details</DialogDescription>
@@ -778,7 +778,7 @@ useEffect(() => {
 
         {/* Add Task Dialog */}
         <Dialog open={isAddTaskDialogOpen} onOpenChange={setIsAddTaskDialogOpen}>
-          <DialogContent className="sm:max-w-[600px]">
+          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Add New Task</DialogTitle>
               <DialogDescription>Create a new task for the current sprint</DialogDescription>
