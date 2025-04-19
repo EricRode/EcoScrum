@@ -29,8 +29,9 @@ export function SprintProvider({ children }: { children: ReactNode }) {
     console.log("📦 Fetching sprints for project:", selectedProjectId) // DEBUG
     const loadSprints = async () => {
       try {
-        const projectSprints = await getAllSprints(selectedProjectId)
+
         const storedSprintId = localStorage.getItem(`selectedSprintId:${selectedProjectId}`)
+        const projectSprints = await getAllSprints(selectedProjectId)
 
         if (storedSprintId && projectSprints.some((s: any) => s.id === storedSprintId)) {
           setSelectedSprintId(storedSprintId)

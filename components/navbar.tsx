@@ -17,7 +17,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { getAllSprints } from "@/lib/axiosInstance"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   Dialog,
   DialogContent,
@@ -44,9 +44,25 @@ export default function Navbar() {
     description: "",
   })
 
-  const projectSprints = useMemo(() => {
-    if (!selectedProjectId) return []
-    return getAllSprints(selectedProjectId)
+  const [projectSprints, setProjectSprints] = useState<any[]>([])
+
+  useEffect(() => {
+    if (!selectedProjectId) {
+      setProjectSprints([])
+      return
+    }
+
+    const fetchSprints = async () => {
+      try {
+        const sprints = await getAllSprints(selectedProjectId)
+        setProjectSprints(sprints)
+      } catch (error) {
+        console.error("Failed to fetch sprints:", error)
+        setProjectSprints([])
+      }
+    }
+
+    fetchSprints()
   }, [selectedProjectId])
 
   const handleCreateProject = async () => {
