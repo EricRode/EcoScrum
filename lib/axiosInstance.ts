@@ -393,10 +393,6 @@ export function completeSprintAndRedirect(sprintId: string) {
   return axiosInstance.patch(`/sprints/${sprintId}/complete`)  // Adjust the endpoint based on your backend
     .then(response => {
       console.log("Sprint completed successfully:", response.data);
-
-      // Redirect to a new page after completing the sprint
-      // You can use Next.js' router to redirect (if in a Next.js app)
-      window.location.href = "/dashboard";  // Adjust the redirect URL as needed
     })
     .catch(error => {
       console.error("Error completing sprint:", error);

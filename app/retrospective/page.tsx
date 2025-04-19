@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState, useEffect, useMemo } from "react"
-import { useSprintData, saveRetrospective, getAllSprints } from "@/lib/axiosInstance"
+import { useSprintData, saveRetrospective, getAllSprints, getProjectById } from "@/lib/axiosInstance"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/components/auth-provider"
 import { useSprintContext } from "@/components/sprint-context"
@@ -46,7 +46,7 @@ export default function Retrospective() {
   }, [allSprints, selectedSprintId]);
 
   // Get the selected sprint data from context
-  const { data: sprint, loading: sprintLoading, error } = useSprintData(selectedSprintId || undefined)
+  const { data: sprint, loading: sprintLoading, error } = useSprintData(selectedSprintId || undefined, selectedProjectId)
 
   const [formData, setFormData] = useState({
     goalMet: "Partially",
@@ -57,14 +57,14 @@ export default function Retrospective() {
 
   // Update form data when sprint changes
   useEffect(() => {
-    if (sprint?.retrospective) {
+    if (sprint && sprint.retrospective) {
       setFormData({
         goalMet: sprint.retrospective.goalMet,
         inefficientProcesses: sprint.retrospective.inefficientProcesses,
         improvements: sprint.retrospective.improvements,
         teamNotes: sprint.retrospective.teamNotes,
       })
-    } else {
+    } else if(sprint){
       // Reset form if no retrospective data exists
       setFormData({
         goalMet: "Partially",
@@ -100,8 +100,13 @@ export default function Retrospective() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!sprint || !sprint.id) {
+      console.error("Sprint is not loaded yet or missing ID")
+      return
+    }
+
     await saveRetrospective({
-      sprintId: sprint?.id,
+      sprintId: sprint.id,
       ...formData,
     })
     toast({
