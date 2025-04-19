@@ -77,7 +77,7 @@ export default function SprintBoard() {
 
   
   // Use the selected sprint from context
-  const { data: sprint, loading: sprintLoading } = useSprintData(selectedSprintId || undefined)
+  const { data: sprint, loading: sprintLoading } = useSprintData(selectedSprintId || undefined, selectedProjectId)
   const { data: tasks, loading: tasksLoading } = useTasksData(sprint?.id || "")
 
   // Local state for tasks to enable immediate UI updates
