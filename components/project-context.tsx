@@ -61,7 +61,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   const createNewProject = async (name: string, description: string) => {
     try {
-      const newProject = await createProject({ name, description, createdBy: "user-123" })
+      const newProject = await createProject({ name, description})
       setProjects((prev) => [...prev, newProject])
       return newProject
     } catch (error) {

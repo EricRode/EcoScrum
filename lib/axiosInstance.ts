@@ -192,9 +192,9 @@ export function addBacklogItem(item: Omit<BacklogItem, "id">) {
           });
       }
       export function getAllSprints(projectId?: string) {
-        const endpoint = `/projects/${projectId}/sprints`;  // Adjust the URL based on whether projectId is provided
+       // const endpoint = `/projects/${projectId}/sprints`;  // Adjust the URL based on whether projectId is provided
       
-        return axiosInstance.get(endpoint)  // Send GET request to the API
+        return axiosInstance.get(`/projects/${projectId}/sprints`)  // Send GET request to the API
           .then((response) => response.data)  // Extract and return the data from the response
           .catch((error) => {
             console.error('Error fetching sprints:', error);  // Handle errors
@@ -415,7 +415,7 @@ export function completeSprintAndRedirect(sprintId: string) {
         name: string
         description: string
         createdAt: string
-        createdBy: string
+        createdBy?: string
         teamMembers: TeamMember[]
         sprints: string[] // Sprint IDs
       }
