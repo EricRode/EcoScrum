@@ -54,7 +54,11 @@ export default function SprintBoard() {
   useEffect(() => {
     const fetchSprints = async () => {
       try {
-        if (!selectedProjectId) return;
+        if (!selectedProjectId) {
+          console.log("selectedProjectId is not set yet"); // Debugging log
+          return;
+        }
+        console.log("Fetching sprints for projectId:", selectedProjectId); // Debugging log
         const sprints = await getAllSprints(selectedProjectId);
         setAllSprints(sprints);
       } catch (error) {
@@ -357,7 +361,7 @@ useEffect(() => {
         previousScore: sprint?.sustainabilityScore || 0,
         effectsTackled: 0,
         tasks: [],
-        projectId: sprint?.projectId || "", 
+        projectId: selectedProjectId, 
       }
 
       const createdSprint = await createSprint(sprintToCreate)

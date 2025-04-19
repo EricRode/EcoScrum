@@ -118,9 +118,10 @@ export function addBacklogItem(item: Omit<BacklogItem, "id">) {
     
       
       export function createSprint(sprint: Omit<Sprint, "id">) {
-        return axiosInstance.post('/sprints', sprint)  // Adjust endpoint
+        return axiosInstance.post('/sprints', sprint) 
           .then(response => {
             const newSprint = response.data;
+            console.log(newSprint);
             return axiosInstance.patch(`/projects/${sprint.projectId}`, { $push: { sprints: newSprint.id } })  // Add sprint to project
               .then(() => newSprint);
           })
@@ -192,71 +193,80 @@ export function addBacklogItem(item: Omit<BacklogItem, "id">) {
           });
       }
       export function getAllSprints(projectId?: string) {
-       // const endpoint = `/projects/${projectId}/sprints`;  // Adjust the URL based on whether projectId is provided
+        if (!projectId) {
+          return Promise.reject(new Error("projectId is required to fetch sprints"));
+        }
       
-        return axiosInstance.get(`/projects/${projectId}/sprints`)  // Send GET request to the API
-          .then((response) => response.data)  // Extract and return the data from the response
+        return axiosInstance
+          .get(`/projects/${projectId}/sprints`)
+          .then((response) => response.data)
           .catch((error) => {
-            console.error('Error fetching sprints:', error);  // Handle errors
-            throw error;  // Rethrow error to be handled by the caller
+            console.error('Error fetching sprints:', error);
+            throw error;
           });
       }
       
       import { useState, useEffect } from 'react';
 
-export function useSprintData(sprintId?: string, projectId?: string) {
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<any>(null);
-
-  useEffect(() => {
-    let isMounted = true; // Prevent state update if component is unmounted
-
-    const fetchSprints = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const sprints = await getAllSprints(projectId); // Fetch sprints based on projectId
-        let targetSprintId = sprintId;
-
-        // If no sprintId is provided but projectId is, get the latest sprint for the project
-        if (!targetSprintId && projectId) {
-          const projectSprints = sprints.filter((s: any) => s.projectId === projectId);
-          if (projectSprints.length > 0) {
-            targetSprintId = projectSprints[projectSprints.length - 1].id;
-          }
-        }
-
-        // Default to the latest sprint if no sprintId is provided
-        if (!targetSprintId) {
-          targetSprintId = sprints[sprints.length - 1]?.id;
-        }
-
-        const sprint = sprints.find((s: any) => s.id === targetSprintId);
-
-        if (isMounted) {
-          setData(sprint || sprints[sprints.length - 1]); // Return the latest sprint if not found
-        }
-      } catch (err) {
-        if (isMounted) {
-          setError(err); // Handle error if any
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
+      export function useSprintData(sprintId?: string, projectId?: string) {
+        const [data, setData] = useState<any>(null);
+        const [loading, setLoading] = useState<boolean>(true);
+        const [error, setError] = useState<any>(null);
+      
+        useEffect(() => {
+          let isMounted = true;
+      
+          const fetchSprints = async () => {
+            if (!projectId) {
+              setLoading(false);
+              return;
+            }
+      
+            setLoading(true);
+            setError(null);
+      
+            try {
+              console.log('Fetching sprint data with', { sprintId, projectId });
+              const sprints = await getAllSprints(projectId);
+              let targetSprintId = sprintId;
+      
+              if (!targetSprintId && projectId) {
+                const projectSprints = sprints.filter((s: any) => s.projectId === projectId);
+                if (projectSprints.length > 0) {
+                  targetSprintId = projectSprints[projectSprints.length - 1].id;
+                }
+              }
+      
+              if (!targetSprintId) {
+                targetSprintId = sprints[sprints.length - 1]?.id;
+              }
+      
+              const sprint = sprints.find((s: any) => s.id === targetSprintId);
+      
+              if (isMounted) {
+                setData(sprint || sprints[sprints.length - 1] || null);
+              }
+            } catch (err) {
+              if (isMounted) {
+                setError(err);
+              }
+            } finally {
+              if (isMounted) {
+                setLoading(false);
+              }
+            }
+          };
+      
+          fetchSprints();
+      
+          return () => {
+            isMounted = false;
+          };
+        }, [sprintId, projectId]);
+      
+        return { data, loading, error };
       }
-    };
-
-    fetchSprints();
-
-    return () => {
-      isMounted = false; // Cleanup to prevent state update after unmount
-    };
-  }, [sprintId, projectId]);
-
-  return { data, loading, error };
-}
+      
 
 export function getAllTasks() {
   return axiosInstance.get('/tasks')  // Send GET request to the /tasks endpoint
