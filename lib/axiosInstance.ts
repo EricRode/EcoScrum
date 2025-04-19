@@ -400,90 +400,101 @@ export function completeSprintAndRedirect(sprintId: string) {
     });
 }
 
-      import type { PRIORITY_LEVELS, TASK_STATUSES, SusafCategory } from "./constants"
+// Add this function to fetch sustainability effects for a project
+export function getSustainabilityEffects(projectId: string) {
+  return axiosInstance.get(`/susaf/effects/${projectId}`)
+    .then(response => response.data)
+    .catch(error => {
+      console.error('Error fetching sustainability effects:', error);
+      throw error;
+    });
+}
+
+import type { PRIORITY_LEVELS, TASK_STATUSES, SusafCategory } from "./constants"
       
-      export interface User {
-        id: string
-        name: string
-        email: string
-        avatar?: string
-      }
-      
-      export interface TeamMember {
-        userId: string
-        role: string
-        email: string
-        joinedAt: string
-      }
-      
-      export interface Project {
-        id: string
-        name: string
-        description: string
-        createdAt: string
-        createdBy?: string
-        teamMembers: TeamMember[]
-        sprints: string[] // Sprint IDs
-      }
-      
-      export interface Task {
-        id: string
-        title: string
-        description: string
-        priority: (typeof PRIORITY_LEVELS)[number]
-        sustainabilityContext: string
-        status: (typeof TASK_STATUSES)[number]
-        comments: number
-        subtasks: number
-        sustainabilityWeight: number
-        assignedTo?: string
-        sprintId: string
-        storyPoints: number
-        sustainabilityPoints: number
-        relatedSusafEffects?: string[]
-        definitionOfDone?: string
-        tags?: string[]
-        sustainable: boolean
-        susafCategory?: SusafCategory
-        order: number
-        projectId: string
-      }
-      
-      export interface Sprint {
-        id: string
-        name: string
-        goal: string
-        startDate: string
-        endDate: string
-        progress: number
-        sustainabilityScore: number
-        previousScore: number
-        effectsTackled: number
-        tasks: string[] // Task IDs
-        projectId: string
-        retrospective?: {
-          goalMet: "Yes" | "No" | "Partially"
-          inefficientProcesses: string
-          improvements: string
-          teamNotes: string
-        }
-      }
-      
-      export interface BacklogItem {
-        id: string
-        title: string
-        description: string
-        priority: (typeof PRIORITY_LEVELS)[number]
-        sustainable: boolean
-        storyPoints: number
-        sustainabilityScore: number
-        status: (typeof TASK_STATUSES)[number]
-        susafCategory?: SusafCategory
-        assignedTo?: string
-        sprintId?: string
-        projectId: string
-        sustainabilityPoints?: number
-        relatedSusafEffects?: string[]
-        definitionOfDone?: string
-        tags?: string[]
-      }
+export interface User {
+  id: string
+  name: string
+  email: string
+  avatar?: string
+}
+
+export interface TeamMember {
+  userId: string
+  role: string
+  email: string
+  joinedAt: string
+}
+
+export interface Project {
+  id: string
+  name: string
+  description: string
+  createdAt: string
+  createdBy?: string
+  teamMembers: TeamMember[]
+  sprints: string[] // Sprint IDs
+}
+
+export interface Task {
+  id: string
+  title: string
+  description: string
+  priority: (typeof PRIORITY_LEVELS)[number]
+  sustainabilityContext: string
+  status: (typeof TASK_STATUSES)[number]
+  comments: number
+  subtasks: number
+  sustainabilityWeight: number
+  assignedTo?: string
+  sprintId: string
+  storyPoints: number
+  sustainabilityPoints: number
+  relatedSusafEffects?: string[]
+  sustainabilityEffects?: string[] // Array of effect IDs
+  definitionOfDone?: string
+  tags?: string[]
+  sustainable: boolean
+  susafCategory?: SusafCategory
+  order: number
+  projectId: string
+}
+
+export interface Sprint {
+  id: string
+  name: string
+  goal: string
+  startDate: string
+  endDate: string
+  progress: number
+  sustainabilityScore: number
+  previousScore: number
+  effectsTackled: number
+  tasks: string[] // Task IDs
+  projectId: string
+  retrospective?: {
+    goalMet: "Yes" | "No" | "Partially"
+    inefficientProcesses: string
+    improvements: string
+    teamNotes: string
+  }
+}
+
+export interface BacklogItem {
+  id: string
+  title: string
+  description: string
+  priority: (typeof PRIORITY_LEVELS)[number]
+  sustainable: boolean
+  storyPoints: number
+  sustainabilityScore: number
+  status: (typeof TASK_STATUSES)[number]
+  susafCategory?: SusafCategory
+  assignedTo?: string
+  sprintId?: string
+  projectId: string
+  sustainabilityPoints?: number
+  relatedSusafEffects?: string[]
+  definitionOfDone?: string
+  tags?: string[]
+}

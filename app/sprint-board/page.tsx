@@ -29,6 +29,7 @@ import {
   getAllUsers,
   getAllSprints,
   createSprint,
+  getSustainabilityEffects,
   type Task,
   User,
 } from "@/lib/axiosInstance"
@@ -40,6 +41,7 @@ import { useToast } from "@/hooks/use-toast"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Checkbox } from "@/components/ui/checkbox"
 import { SUSAF_CATEGORIES, SUSAF_EFFECTS } from "@/lib/constants"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 export default function SprintBoard() {
   const { selectedProjectId } = useProjectContext();
@@ -49,7 +51,6 @@ export default function SprintBoard() {
   const { selectedSprintId, setSelectedSprintId } = useSprintContext()
 
   // Get all sprints for the dropdown
-  //const allSprints = useMemo(() => getAllSprints(), [])
   const [allSprints, setAllSprints] = useState<any[]>([]);
   useEffect(() => {
     const fetchSprints = async () => {
@@ -75,7 +76,6 @@ export default function SprintBoard() {
     }
   }, [allSprints, selectedSprintId]);
 
-  
   // Use the selected sprint from context
   const { data: sprint, loading: sprintLoading } = useSprintData(selectedSprintId || undefined, selectedProjectId)
   const { data: tasks, loading: tasksLoading } = useTasksData(sprint?.id || "")
@@ -100,18 +100,18 @@ export default function SprintBoard() {
   // Use useMemo to ensure stable reference for users
   const [allUsers, setAllUsers] = useState<User[]>([])
 
-useEffect(() => {
-  const fetchUsers = async () => {
-    try {
-      const users = await getAllUsers() // <-- This returns a promise
-      setAllUsers(users)
-    } catch (error) {
-      console.error("Failed to load users", error)
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const users = await getAllUsers() // <-- This returns a promise
+        setAllUsers(users)
+      } catch (error) {
+        console.error("Failed to load users", error)
+      }
     }
-  }
 
-  fetchUsers()
-}, [])
+    fetchUsers()
+  }, [])
 
   // Group tasks by status and sort by order
   const tasksByStatus = useMemo(() => {
@@ -146,6 +146,11 @@ useEffect(() => {
   // State for SuSAF effects selection
   const [selectedCategory, setSelectedCategory] = useState<string>("")
   const [availableEffects, setAvailableEffects] = useState<string[]>([])
+
+  // State for sustainability effects
+  const [sustainabilityEffects, setSustainabilityEffects] = useState<any[]>([])
+  const [selectedEffects, setSelectedEffects] = useState<string[]>([])
+  const [editTaskSelectedEffects, setEditTaskSelectedEffects] = useState<string[]>([])
 
   const newTaskInitialState = {
     title: "",
@@ -200,6 +205,34 @@ useEffect(() => {
       setAvailableEffects([])
     }
   }, [selectedCategory])
+
+  // Fetch sustainability effects when project ID changes
+  useEffect(() => {
+    if (!selectedProjectId) return;
+
+    const fetchEffects = async () => {
+      try {
+        const response = await getSustainabilityEffects(selectedProjectId);
+        // Process the data structure from the API response
+        if (response && response.success && response.data) {
+          // The response.data contains the array of dimension objects with their effects
+          setSustainabilityEffects(response.data);
+        } else {
+          setSustainabilityEffects([]);
+          console.error('Unexpected response format from sustainability effects API');
+        }
+      } catch (error) {
+        console.error('Failed to fetch sustainability effects:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load sustainability effects.",
+          variant: "destructive",
+        });
+      }
+    };
+
+    fetchEffects();
+  }, [selectedProjectId, toast]);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -279,6 +312,8 @@ useEffect(() => {
   const openTaskDialog = (task: Task) => {
     setSelectedTask(task)
     setEditedTask({ ...task })
+    // Initialize selected effects from the task (try both possible locations)
+    setEditTaskSelectedEffects(task.sustainabilityEffects || task.relatedSusafEffects || [])
     setIsTaskDialogOpen(true)
   }
 
@@ -292,12 +327,48 @@ useEffect(() => {
     setNewTask((prev) => ({ ...prev, [key]: value }))
   }
 
+  const toggleEffect = (effectId: string) => {
+    setSelectedEffects(prev => 
+      prev.includes(effectId)
+        ? prev.filter(id => id !== effectId)
+        : [...prev, effectId]
+    );
+  };
+
+  const toggleEditEffect = (effectId: string) => {
+    setEditTaskSelectedEffects(prev => 
+      prev.includes(effectId)
+        ? prev.filter(id => id !== effectId)
+        : [...prev, effectId]
+    )
+    
+    // Also update the editedTask
+    if (editedTask) {
+      const updatedEffects = editTaskSelectedEffects.includes(effectId)
+        ? editTaskSelectedEffects.filter(id => id !== effectId)
+        : [...editTaskSelectedEffects, effectId]
+        
+      setEditedTask({
+        ...editedTask,
+        sustainabilityEffects: updatedEffects,
+        relatedSusafEffects: updatedEffects
+      })
+    }
+  }
+
   const handleSaveChanges = async () => {
     if (editedTask) {
-      await updateTask(editedTask.id, editedTask)
+      // Make sure effects are properly included in the update
+      const taskToUpdate = {
+        ...editedTask,
+        sustainabilityEffects: editTaskSelectedEffects,
+        relatedSusafEffects: editTaskSelectedEffects
+      }
+      
+      await updateTask(taskToUpdate.id, taskToUpdate)
 
       // Update local state
-      setLocalTasks(localTasks.map((task) => (task.id === editedTask.id ? editedTask : task)))
+      setLocalTasks(localTasks.map((task) => (task.id === taskToUpdate.id ? taskToUpdate : task)))
 
       setIsTaskDialogOpen(false)
       toast({
@@ -312,6 +383,9 @@ useEffect(() => {
       const taskToAdd = {
         ...newTask,
         sprintId: sprint?.id || "",
+        projectId: selectedProjectId || "", 
+        sustainabilityEffects: selectedEffects, // Save this field
+        relatedSusafEffects: selectedEffects, // Also save to relatedSusafEffects for compatibility
       } as Omit<Task, "id" | "order">
 
       const newTaskWithId = await addTask(taskToAdd)
@@ -328,6 +402,7 @@ useEffect(() => {
       // Reset form
       setNewTask(newTaskInitialState)
       setSelectedCategory("")
+      setSelectedEffects([]) // Reset selected effects
     } catch (error) {
       toast({
         title: "Error",
@@ -710,6 +785,93 @@ useEffect(() => {
                 />
               </div>
 
+              <div className="space-y-2">
+                <Label>Sustainability Effects</Label>
+                {sustainabilityEffects.length > 0 ? (
+                  <ScrollArea className="h-[250px] border rounded-md p-4">
+                    <div className="space-y-6">
+                      {sustainabilityEffects.map((dimension) => (
+                        <div key={dimension._id} className="space-y-2">
+                          <h3 className="font-medium text-sm text-gray-900 bg-gray-100 p-2 rounded">
+                            {dimension.name}: {dimension.question}
+                          </h3>
+                          
+                          <div className="ml-2 space-y-3">
+                            {dimension.effects && dimension.effects.map((effect) => (
+                              <div key={effect._id} className="flex items-start space-x-2">
+                                <Checkbox
+                                  id={`edit-effect-${effect._id}`}
+                                  checked={editTaskSelectedEffects.includes(effect._id)}
+                                  onCheckedChange={() => toggleEditEffect(effect._id)}
+                                  className="mt-1"
+                                />
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <Label htmlFor={`edit-effect-${effect._id}`} className="font-medium text-sm">
+                                      {effect.description}
+                                    </Label>
+                                    <Badge 
+                                      variant="outline" 
+                                      className={effect.is_positive ? 
+                                        "bg-green-50 text-green-700 border-green-200" : 
+                                        "bg-amber-50 text-amber-700 border-amber-200"
+                                      }
+                                    >
+                                      {effect.is_positive ? "Positive" : "Negative"}
+                                    </Badge>
+                                  </div>
+                                  <div className="text-xs text-gray-500 mt-1 ml-1">
+                                    Impact: {effect.impact_level}/5 · Likelihood: {effect.likelihood}/5 · Type: {effect.order_of_impact}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                ) : (
+                  <div className="text-center p-4 border rounded-md">
+                    <p className="text-sm text-gray-500">No sustainability effects available for this project.</p>
+                  </div>
+                )}
+
+                {editTaskSelectedEffects.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-sm font-medium mb-1">Selected effects:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {editTaskSelectedEffects.map((effectId) => {
+                        // Find the effect across all dimensions
+                        let effect;
+                        for (const dimension of sustainabilityEffects) {
+                          effect = dimension.effects.find(e => e._id === effectId);
+                          if (effect) break;
+                        }
+                        return (
+                          <Badge 
+                            key={effectId}
+                            variant="secondary"
+                            className="pl-2 bg-emerald-50 text-emerald-700 border-emerald-200"
+                          >
+                            {effect ? effect.description.substring(0, 30) + (effect.description.length > 30 ? '...' : '') : 'Unknown effect'}
+                            <button 
+                              className="ml-1 hover:bg-emerald-100 rounded-full p-1"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                toggleEditEffect(effectId);
+                              }}
+                            >
+                              ✕
+                            </button>
+                          </Badge>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Sustainability Points</Label>
@@ -900,6 +1062,93 @@ useEffect(() => {
                   </div>
                 </div>
               )}
+
+              <div className="space-y-2">
+                <Label>Sustainability Effects</Label>
+                {sustainabilityEffects.length > 0 ? (
+                  <ScrollArea className="h-[300px] border rounded-md p-4">
+                    <div className="space-y-6">
+                      {sustainabilityEffects.map((dimension) => (
+                        <div key={dimension._id} className="space-y-2">
+                          <h3 className="font-medium text-sm text-gray-900 bg-gray-100 p-2 rounded">
+                            {dimension.name}: {dimension.question}
+                          </h3>
+                          
+                          <div className="ml-2 space-y-3">
+                            {dimension.effects && dimension.effects.map((effect) => (
+                              <div key={effect._id} className="flex items-start space-x-2">
+                                <Checkbox
+                                  id={`effect-${effect._id}`}
+                                  checked={selectedEffects.includes(effect._id)}
+                                  onCheckedChange={() => toggleEffect(effect._id)}
+                                  className="mt-1"
+                                />
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <Label htmlFor={`effect-${effect._id}`} className="font-medium text-sm">
+                                      {effect.description}
+                                    </Label>
+                                    <Badge 
+                                      variant="outline" 
+                                      className={effect.is_positive ? 
+                                        "bg-green-50 text-green-700 border-green-200" : 
+                                        "bg-amber-50 text-amber-700 border-amber-200"
+                                      }
+                                    >
+                                      {effect.is_positive ? "Positive" : "Negative"}
+                                    </Badge>
+                                  </div>
+                                  <div className="text-xs text-gray-500 mt-1 ml-1">
+                                    Impact: {effect.impact_level}/5 · Likelihood: {effect.likelihood}/5 · Type: {effect.order_of_impact}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                ) : (
+                  <div className="text-center p-4 border rounded-md">
+                    <p className="text-sm text-gray-500">No sustainability effects available for this project.</p>
+                  </div>
+                )}
+
+                {selectedEffects.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-sm font-medium mb-1">Selected effects:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedEffects.map((effectId) => {
+                        // Find the effect across all dimensions
+                        let effect;
+                        for (const dimension of sustainabilityEffects) {
+                          effect = dimension.effects.find(e => e._id === effectId);
+                          if (effect) break;
+                        }
+                        return (
+                          <Badge 
+                            key={effectId}
+                            variant="secondary"
+                            className="pl-2 bg-emerald-50 text-emerald-700 border-emerald-200"
+                          >
+                            {effect ? effect.description.substring(0, 30) + (effect.description.length > 30 ? '...' : '') : 'Unknown effect'}
+                            <button 
+                              className="ml-1 hover:bg-emerald-100 rounded-full p-1"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                toggleEffect(effectId);
+                              }}
+                            >
+                              ✕
+                            </button>
+                          </Badge>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
