@@ -18,42 +18,48 @@ export function useSprintContext() {
   }
   return context
 }
-
 export function SprintProvider({ children }: { children: ReactNode }) {
   const [selectedSprintId, setSelectedSprintId] = useState<string>("")
   const { selectedProjectId, loading: projectLoading } = useProjectContext()
 
-  // Load the selected sprint from localStorage on initial render
   useEffect(() => {
-    const fetchSprints = async () => {
-      if (projectLoading || !selectedProjectId) return
+    //if (projectLoading || !selectedProjectId) return
+    if (projectLoading) return
+    if (!selectedProjectId) return
+    console.log("📦 Fetching sprints for project:", selectedProjectId) // DEBUG
+    const loadSprints = async () => {
+      try {
+        const projectSprints = await getAllSprints(selectedProjectId)
+        const storedSprintId = localStorage.getItem(`selectedSprintId:${selectedProjectId}`)
 
-      const storedSprintId = localStorage.getItem(`selectedSprintId:${selectedProjectId}`)
-      const projectSprints = await getAllSprints(selectedProjectId)  // Await the promise here
-
-      if (storedSprintId && projectSprints.some((s: { id: string }) => s.id === storedSprintId)) {
-        setSelectedSprintId(storedSprintId)
-      } else if (projectSprints.length > 0) {
-        // Default to the latest sprint for the project
-        const latestSprint = projectSprints[projectSprints.length - 1]
-        setSelectedSprintId(latestSprint.id)
-        localStorage.setItem(`selectedSprintId:${selectedProjectId}`, latestSprint.id)
-      } else {
-        // Clear selection if no sprints exist for this project
+        if (storedSprintId && projectSprints.some((s: any) => s.id === storedSprintId)) {
+          setSelectedSprintId(storedSprintId)
+        } else if (projectSprints.length > 0) {
+          const latestSprint = projectSprints[projectSprints.length - 1]
+          setSelectedSprintId(latestSprint.id)
+          localStorage.setItem(`selectedSprintId:${selectedProjectId}`, latestSprint.id)
+        } else {
+          setSelectedSprintId("")
+          localStorage.removeItem(`selectedSprintId:${selectedProjectId}`)
+        }
+      } catch (err) {
+        console.error("Failed to load sprints:", err)
         setSelectedSprintId("")
-        localStorage.removeItem(`selectedSprintId:${selectedProjectId}`)
       }
     }
 
-    fetchSprints()  // Fetch the sprints when the effect runs
+    loadSprints()
   }, [selectedProjectId, projectLoading])
 
-  // Save the selected sprint to localStorage whenever it changes
   useEffect(() => {
     if (selectedSprintId && selectedProjectId) {
       localStorage.setItem(`selectedSprintId:${selectedProjectId}`, selectedSprintId)
     }
   }, [selectedSprintId, selectedProjectId])
 
-  return <SprintContext.Provider value={{ selectedSprintId, setSelectedSprintId }}>{children}</SprintContext.Provider>
+  return (
+    <SprintContext.Provider value={{ selectedSprintId, setSelectedSprintId }}>
+      {children}
+    </SprintContext.Provider>
+  )
 }

@@ -53,7 +53,7 @@ export function addBacklogItem(item: Omit<BacklogItem, "id">) {
       });
   }
   
-  export function getAllProjects() {
+  export function getAllProjects(): Promise<Project[] >{
     return axiosInstance.get('/projects')  // Adjust endpoint
       .then(response => response.data)
       .catch(error => {

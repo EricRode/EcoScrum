@@ -12,6 +12,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useProjectContext } from "@/components/project-context"
 
 export default function Retrospective() {
   const { user, loading: authLoading } = useAuth()
@@ -19,8 +20,30 @@ export default function Retrospective() {
   const { toast } = useToast()
   const { selectedSprintId, setSelectedSprintId } = useSprintContext()
 
+  const { selectedProjectId } = useProjectContext();
+  
   // Get all sprints for the dropdown
-  const allSprints = useMemo(() => getAllSprints(), [])
+  // const allSprints = useMemo(() => getAllSprints(), [])
+  const [allSprints, setAllSprints] = useState<any[]>([]);
+  useEffect(() => {
+    const fetchSprints = async () => {
+      try {
+        if (!selectedProjectId) return;
+        const sprints = await getAllSprints(selectedProjectId);
+        setAllSprints(sprints);
+      } catch (error) {
+        console.error("Failed to fetch sprints", error);
+      }
+    };
+    fetchSprints();
+  }, [selectedProjectId]);
+
+  useEffect(() => {
+    if (allSprints.length > 0 && !selectedSprintId) {
+      const latestSprint = allSprints[allSprints.length - 1];
+      setSelectedSprintId(latestSprint.id);
+    }
+  }, [allSprints, selectedSprintId]);
 
   // Get the selected sprint data from context
   const { data: sprint, loading: sprintLoading, error } = useSprintData(selectedSprintId || undefined)

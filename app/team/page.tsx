@@ -43,6 +43,35 @@ export default function TeamPage() {
     }
   }, [authLoading, user, router])
 
+  const [userMap, setUserMap] = useState<Record<string, any>>({})
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      if (!selectedProject) return
+  
+      const users = await Promise.all(
+        selectedProject.teamMembers.map(async (member) => {
+          try {
+            const user = await getUserById(member.userId)
+            return { userId: member.userId, user }
+          } catch (err) {
+            console.error("Error loading user", err)
+            return { userId: member.userId, user: null }
+          }
+        })
+      )
+  
+      const map: Record<string, any> = {}
+      users.forEach(({ userId, user }) => {
+        map[userId] = user
+      })
+  
+      setUserMap(map)
+    }
+  
+    fetchUsers()
+  }, [selectedProject])
+  
   if (authLoading || !user) {
     return null // Will redirect to login if not authenticated
   }
@@ -139,7 +168,7 @@ export default function TeamPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {selectedProject.teamMembers.map((member) => {
-          const memberUser = getUserById(member.userId)
+          const memberUser = userMap[member.userId]
           return (
             <Card key={member.userId}>
               <CardHeader className="flex flex-row items-center gap-4">

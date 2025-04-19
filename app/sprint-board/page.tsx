@@ -30,24 +30,48 @@ import {
   getAllSprints,
   createSprint,
   type Task,
+  User,
 } from "@/lib/axiosInstance"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
 import { useSprintContext } from "@/components/sprint-context"
+import { useProjectContext } from "@/components/project-context"
 import { useToast } from "@/hooks/use-toast"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Checkbox } from "@/components/ui/checkbox"
 import { SUSAF_CATEGORIES, SUSAF_EFFECTS } from "@/lib/constants"
 
 export default function SprintBoard() {
+  const { selectedProjectId } = useProjectContext();
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
   const { toast } = useToast()
   const { selectedSprintId, setSelectedSprintId } = useSprintContext()
 
   // Get all sprints for the dropdown
-  const allSprints = useMemo(() => getAllSprints(), [])
+  //const allSprints = useMemo(() => getAllSprints(), [])
+  const [allSprints, setAllSprints] = useState<any[]>([]);
+  useEffect(() => {
+    const fetchSprints = async () => {
+      try {
+        if (!selectedProjectId) return;
+        const sprints = await getAllSprints(selectedProjectId);
+        setAllSprints(sprints);
+      } catch (error) {
+        console.error("Failed to fetch sprints", error);
+      }
+    };
+    fetchSprints();
+  }, [selectedProjectId]);
 
+  useEffect(() => {
+    if (allSprints.length > 0 && !selectedSprintId) {
+      const latestSprint = allSprints[allSprints.length - 1];
+      setSelectedSprintId(latestSprint.id);
+    }
+  }, [allSprints, selectedSprintId]);
+
+  
   // Use the selected sprint from context
   const { data: sprint, loading: sprintLoading } = useSprintData(selectedSprintId || undefined)
   const { data: tasks, loading: tasksLoading } = useTasksData(sprint?.id || "")
@@ -70,7 +94,20 @@ export default function SprintBoard() {
   }, [tasks, localTasks])
 
   // Use useMemo to ensure stable reference for users
-  const allUsers = useMemo(() => getAllUsers(), [])
+  const [allUsers, setAllUsers] = useState<User[]>([])
+
+useEffect(() => {
+  const fetchUsers = async () => {
+    try {
+      const users = await getAllUsers() // <-- This returns a promise
+      setAllUsers(users)
+    } catch (error) {
+      console.error("Failed to load users", error)
+    }
+  }
+
+  fetchUsers()
+}, [])
 
   // Group tasks by status and sort by order
   const tasksByStatus = useMemo(() => {
@@ -230,7 +267,8 @@ export default function SprintBoard() {
   }
 
   const handleCompleteSprintClick = async () => {
-    await completeSprintAndRedirect()
+    if (!selectedSprintId) return // Optionally guard against undefined
+    await completeSprintAndRedirect(selectedSprintId)
     router.push("/retrospective")
   }
 

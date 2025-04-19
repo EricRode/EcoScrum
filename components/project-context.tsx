@@ -33,7 +33,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       try {
         const allProjects: Project[] = await getAllProjects() // Explicitly typing allProjects as Project[]
         setProjects(allProjects)
-
+        console.log("Fetched projects:", allProjects)
         const storedProjectId = localStorage.getItem("selectedProjectId")
         if (storedProjectId && allProjects.some((p) => p.id === storedProjectId)) { // Now TypeScript knows p is of type Project
           setSelectedProjectId(storedProjectId)
@@ -57,6 +57,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     if (selectedProjectId) {
       localStorage.setItem("selectedProjectId", selectedProjectId)
     }
+    console.log("selected project id: "+ selectedProjectId)
   }, [selectedProjectId])
 
   const createNewProject = async (name: string, description: string) => {

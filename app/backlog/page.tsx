@@ -23,6 +23,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { SUSAF_CATEGORIES, SUSAF_EFFECTS } from "@/lib/constants"
+import { useProjectContext } from "@/components/project-context"
 
 export default function Backlog() {
   const { data: backlogItems, loading, error } = useBacklogData()
@@ -30,9 +31,30 @@ export default function Backlog() {
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
   const { selectedSprintId, setSelectedSprintId } = useSprintContext()
-
+  const { selectedProjectId } = useProjectContext();
+  
   // Get all sprints for the dropdown
-  const allSprints = useMemo(() => getAllSprints(), [])
+  // const allSprints = useMemo(() => getAllSprints(), [])
+  const [allSprints, setAllSprints] = useState<any[]>([]);
+  useEffect(() => {
+    const fetchSprints = async () => {
+      try {
+        if (!selectedProjectId) return;
+        const sprints = await getAllSprints(selectedProjectId);
+        setAllSprints(sprints);
+      } catch (error) {
+        console.error("Failed to fetch sprints", error);
+      }
+    };
+    fetchSprints();
+  }, [selectedProjectId]);
+
+  useEffect(() => {
+    if (allSprints.length > 0 && !selectedSprintId) {
+      const latestSprint = allSprints[allSprints.length - 1];
+      setSelectedSprintId(latestSprint.id);
+    }
+  }, [allSprints, selectedSprintId]);
 
   const [filters, setFilters] = useState({
     sustainability: "All",
