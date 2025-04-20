@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useBacklogData, addBacklogItem, getAllSprints, type Item } from "@/lib/axiosInstance"
+import { useBacklogData, addBacklogItem, getAllSprints, getSustainabilityEffects, type Item } from "@/lib/axiosInstance"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/components/auth-provider"
 import { useSprintContext } from "@/components/sprint-context"
@@ -24,6 +24,9 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { SUSAF_CATEGORIES, SUSAF_EFFECTS } from "@/lib/constants"
 import { useProjectContext } from "@/components/project-context"
+import { ItemForm } from "@/components/item-form"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Badge } from "@/components/ui/badge"
 
 export default function Backlog() {
   const { data: backlogItems, loading, error } = useBacklogData()
@@ -33,9 +36,10 @@ export default function Backlog() {
   const { selectedSprintId, setSelectedSprintId } = useSprintContext()
   const { selectedProjectId } = useProjectContext();
   
-  // Get all sprints for the dropdown
-  // const allSprints = useMemo(() => getAllSprints(), [])
   const [allSprints, setAllSprints] = useState<any[]>([]);
+  const [sustainabilityEffects, setSustainabilityEffects] = useState<any[]>([])
+  const [selectedEffects, setSelectedEffects] = useState<string[]>([])
+
   useEffect(() => {
     const fetchSprints = async () => {
       try {
@@ -56,6 +60,40 @@ export default function Backlog() {
     }
   }, [allSprints, selectedSprintId]);
 
+  useEffect(() => {
+    if (!selectedProjectId) return;
+
+    const fetchEffects = async () => {
+      try {
+        const response = await getSustainabilityEffects(selectedProjectId);
+        console.log("Sustainability effects response:", response); // Debug line
+        
+        if (response && response.success && response.data) {
+          setSustainabilityEffects(response.data);
+          console.log("Set sustainability effects:", response.data); // Debug line
+        } else {
+          setSustainabilityEffects([]);
+          console.error('Unexpected response format from sustainability effects API:', response);
+        }
+      } catch (error) {
+        console.error('Failed to fetch sustainability effects:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load sustainability effects.",
+          variant: "destructive",
+        });
+      }
+    };
+
+    fetchEffects();
+  }, [selectedProjectId, toast]);
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push("/login")
+    }
+  }, [authLoading, user, router])
+
   const [filters, setFilters] = useState({
     sustainability: "All",
     priority: "All",
@@ -63,10 +101,6 @@ export default function Backlog() {
     status: "All",
     search: "",
   })
-
-  // State for SuSAF effects selection
-  const [selectedCategory, setSelectedCategory] = useState<string>("")
-  const [availableEffects, setAvailableEffects] = useState<string[]>([])
 
   const [newItem, setNewItem] = useState<Partial<Item>>({
     title: "",
@@ -85,39 +119,6 @@ export default function Backlog() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [tagsInput, setTagsInput] = useState("")
 
-  // Update available effects when category changes
-  useEffect(() => {
-    if (selectedCategory && selectedCategory in SUSAF_EFFECTS) {
-      setAvailableEffects(SUSAF_EFFECTS[selectedCategory as keyof typeof SUSAF_EFFECTS])
-    } else {
-      setAvailableEffects([])
-    }
-  }, [selectedCategory])
-
-  // Update newItem.sprintId when selected sprint changes
-  useEffect(() => {
-    if (selectedSprintId) {
-      setNewItem((prev) => ({
-        ...prev,
-        sprintId: selectedSprintId,
-      }))
-    }
-  }, [selectedSprintId])
-
-  useEffect(() => {
-    if (!authLoading && !user) {
-      router.push("/login")
-    }
-  }, [authLoading, user, router])
-
-  if (loading || authLoading || !user) {
-    return null // Will redirect to login if not authenticated
-  }
-
-  if (error) {
-    return <div className="flex justify-center items-center h-64 text-red-500">Error loading backlog data</div>
-  }
-
   const handleFilterChange = (key: keyof typeof filters, value: string) => {
     setFilters((prev) => ({ ...prev, [key]: value }))
   }
@@ -126,60 +127,81 @@ export default function Backlog() {
     setNewItem((prev) => ({ ...prev, [key]: value }))
   }
 
+  const toggleEffect = (effectId: string) => {
+    setSelectedEffects(prev => 
+      prev.includes(effectId)
+        ? prev.filter(id => id !== effectId)
+        : [...prev, effectId]
+    );
+  };
+
   const handleAddItem = async () => {
-    // Process tags from comma-separated string
-    const tags = tagsInput
-      .split(",")
-      .map((tag) => tag.trim())
-      .filter((tag) => tag)
+    try {
+      if (!selectedProjectId) {
+        toast({
+          title: "Error",
+          description: "No project selected. Please select a project first.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Make sure the sustainable flag is set appropriately based on selected effects
+      const sustainable = selectedEffects.length > 0 || newItem.sustainable;
+      
+      const itemToAdd = {
+        ...newItem,
+        sprintId: selectedSprintId,
+        projectId: selectedProjectId,
+        relatedSusafEffects: selectedEffects,
+        sustainable: sustainable,
+        tags: tagsInput
+          .split(",")
+          .map((tag) => tag.trim())
+          .filter((tag) => tag),
+      } as Omit<Item, "id">;
 
-    const itemToAdd = {
-      ...newItem,
-      tags,
-      sprintId: selectedSprintId,
-    } as Omit<Item, "id">
+      console.log("Creating backlog item with data:", itemToAdd);
+      await addBacklogItem(itemToAdd);
+      
+      setIsAddDialogOpen(false);
+      toast({
+        title: "Backlog item added",
+        description: "Your new backlog item has been added successfully.",
+      });
 
-    await addBacklogItem(itemToAdd)
-    setIsAddDialogOpen(false)
-    toast({
-      title: "Backlog item added",
-      description: "Your new backlog item has been added successfully.",
-    })
-
-    // Reset form
-    setNewItem({
-      title: "",
-      description: "",
-      priority: "High",
-      sustainable: false,
-      storyPoints: 3,
-      status: "To Do",
-      sustainabilityPoints: 0,
-      relatedSusafEffects: [],
-      definitionOfDone: "",
-      tags: [],
-      sprintId: selectedSprintId,
-    })
-    setTagsInput("")
-    setSelectedCategory("")
-  }
-
-  const handleSprintChange = (sprintId: string) => {
-    setSelectedSprintId(sprintId)
-  }
-
-  const handleSusafEffectsChange = (effect: string) => {
-    const currentEffects = newItem.relatedSusafEffects || []
-    if (currentEffects.includes(effect)) {
-      // Remove the effect if already selected
-      handleNewItemChange(
-        "relatedSusafEffects",
-        currentEffects.filter((e) => e !== effect),
-      )
-    } else {
-      // Add the effect
-      handleNewItemChange("relatedSusafEffects", [...currentEffects, effect])
+      // Reset form
+      setNewItem({
+        title: "",
+        description: "",
+        priority: "High",
+        sustainable: false,
+        storyPoints: 3,
+        status: "To Do",
+        sustainabilityPoints: 0,
+        relatedSusafEffects: [],
+        definitionOfDone: "",
+        tags: [],
+        sprintId: selectedSprintId,
+      });
+      setTagsInput("");
+      setSelectedEffects([]);
+    } catch (error) {
+      console.error("Error adding backlog item:", error);
+      toast({
+        title: "Error",
+        description: "Failed to add backlog item. Please check the console for details.",
+        variant: "destructive",
+      });
     }
+  };
+
+  if (loading || authLoading || !user) {
+    return null // Will redirect to login if not authenticated
+  }
+
+  if (error) {
+    return <div className="flex justify-center items-center h-64 text-red-500">Error loading backlog data</div>
   }
 
   // Filter backlog items based on selected sprint and other filters
@@ -245,166 +267,23 @@ export default function Backlog() {
                 </DialogTitle>
                 <DialogDescription>Create a new product backlog item with sustainability metrics</DialogDescription>
               </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="title">PBI Title *</Label>
-                  <Input
-                    id="title"
-                    value={newItem.title || ""}
-                    onChange={(e) => handleNewItemChange("title", e.target.value)}
-                    placeholder="Enter backlog item title"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="description">Description *</Label>
-                  <Textarea
-                    id="description"
-                    value={newItem.description || ""}
-                    onChange={(e) => handleNewItemChange("description", e.target.value)}
-                    placeholder="Describe the backlog item"
-                    className="min-h-[100px]"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="priority">Priority *</Label>
-                    <Select value={newItem.priority} onValueChange={(value) => handleNewItemChange("priority", value)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select priority" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Low">Low</SelectItem>
-                        <SelectItem value="Low+">Low+</SelectItem>
-                        <SelectItem value="Medium">Medium</SelectItem>
-                        <SelectItem value="Medium+">Medium+</SelectItem>
-                        <SelectItem value="High">High</SelectItem>
-                        <SelectItem value="High+">High+</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="sprint-assignment">Sprint Assignment</Label>
-                    <Select
-                      value={newItem.sprintId || ""}
-                      onValueChange={(value) => handleNewItemChange("sprintId", value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select sprint" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {allSprints.map((s) => (
-                          <SelectItem key={s.id} value={s.id}>
-                            {s.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="assigned-person">Assigned Person</Label>
-                  <Select
-                    value={newItem.assignedTo || ""}
-                    onValueChange={(value) => handleNewItemChange("assignedTo", value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a person..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="user-1">Alex Johnson</SelectItem>
-                      <SelectItem value="user-2">Sam Smith</SelectItem>
-                      <SelectItem value="user-3">Jordan Lee</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="sustainable"
-                    checked={newItem.sustainable}
-                    onCheckedChange={(checked) => handleNewItemChange("sustainable", checked)}
-                  />
-                  <Label htmlFor="sustainable">This item has sustainability impact</Label>
-                </div>
-
-                {selectedCategory && (
-                  <div className="space-y-2">
-                    <Label>SuSAF Effects</Label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {availableEffects.map((effect) => (
-                        <div key={effect} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`effect-${effect}`}
-                            checked={(newItem.relatedSusafEffects || []).includes(effect)}
-                            onCheckedChange={() => handleSusafEffectsChange(effect)}
-                          />
-                          <Label htmlFor={`effect-${effect}`} className="text-sm">
-                            {effect}
-                          </Label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="sustainability-points">Sustainability Points</Label>
-                    <Input
-                      id="sustainability-points"
-                      type="number"
-                      min="0"
-                      max="10"
-                      value={newItem.sustainabilityPoints || 0}
-                      onChange={(e) => handleNewItemChange("sustainabilityPoints", Number(e.target.value))}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="story-points">Estimated Effort (Story Points) *</Label>
-                    <Input
-                      id="story-points"
-                      type="number"
-                      min="1"
-                      value={newItem.storyPoints || 1}
-                      onChange={(e) => handleNewItemChange("storyPoints", Number(e.target.value))}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="definition-of-done">Definition of Done *</Label>
-                  <Textarea
-                    id="definition-of-done"
-                    value={newItem.definitionOfDone || ""}
-                    onChange={(e) => handleNewItemChange("definitionOfDone", e.target.value)}
-                    placeholder="Define when this item is considered done"
-                    className="min-h-[100px]"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="tags">Tags</Label>
-                  <Input
-                    id="tags"
-                    placeholder="Separate tags with commas"
-                    value={tagsInput}
-                    onChange={(e) => setTagsInput(e.target.value)}
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleAddItem} className="bg-gray-900 hover:bg-gray-800">
-                  Save PBI
-                </Button>
-              </DialogFooter>
+              <ItemForm
+                item={newItem}
+                onChange={handleNewItemChange}
+                onSubmit={handleAddItem}
+                onCancel={() => setIsAddDialogOpen(false)}
+                users={[  // Replace this with your actual users data
+                  { id: "user-1", name: "Alex Johnson", email: "alex@example.com" },
+                  { id: "user-2", name: "Sam Smith", email: "sam@example.com" },
+                  { id: "user-3", name: "Jordan Lee", email: "jordan@example.com" }
+                ]}
+                sprints={allSprints}
+                sustainabilityEffects={sustainabilityEffects}  // All available effects
+                selectedEffects={selectedEffects}             // Currently selected effects
+                onToggleEffect={toggleEffect}                 // Function to toggle selection
+                projectId={selectedProjectId || ""}
+                submitLabel="Save PBI"
+              />
             </DialogContent>
           </Dialog>
         </div>
@@ -488,7 +367,7 @@ export default function Backlog() {
                 <th className="px-6 py-3">Priority</th>
                 <th className="px-6 py-3">Sustainable</th>
                 <th className="px-6 py-3">Story Points</th>
-                <th className="px-6 py-3">Sustainability Score</th>
+                <th className="px-6 py-3">Sustainability Points</th>
                 <th className="px-6 py-3">Status</th>
               </tr>
             </thead>
@@ -508,7 +387,7 @@ export default function Backlog() {
                       <Checkbox checked={item.sustainable} disabled />
                     </td>
                     <td className="px-6 py-4">{item.storyPoints}</td>
-                    <td className="px-6 py-4">{item.sustainabilityScore}</td>
+                    <td className="px-6 py-4">{item.sustainabilityPoints}</td>
                     <td className="px-6 py-4">
                       <span
                         className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium
