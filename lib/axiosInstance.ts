@@ -410,6 +410,49 @@ export function getSustainabilityEffects(projectId: string) {
     });
 }
 
+// Add this function near the getSustainabilityEffects function
+export function syncSustainabilityEffects(projectId: string) {
+  // Create promises for both API calls
+  const effectsPromise = axiosInstance.post(`/susaf/effects/${projectId}`);
+  const recommendationsPromise = axiosInstance.post(`/susaf/recommendations/${projectId}`);
+  
+  // Use Promise.all to wait for both requests to complete
+  return Promise.all([effectsPromise, recommendationsPromise])
+    .then(([effectsResponse, recommendationsResponse]) => {
+      console.log('Successfully synced sustainability effects:', effectsResponse.data);
+      console.log('Successfully synced sustainability recommendations:', recommendationsResponse.data);
+      
+      // Return a combined result
+      return {
+        effects: effectsResponse.data,
+        recommendations: recommendationsResponse.data
+      };
+    })
+    .catch(error => {
+      console.error('Error syncing with SusAF:', error);
+      throw error;
+    });
+}
+
+// Add these functions near the other SusAF-related functions
+export function getSusafToken(projectId: string) {
+  return axiosInstance.get(`/susaf/token/${projectId}`)
+    .then(response => response.data)
+    .catch(error => {
+      console.error('Error fetching SusAF token:', error);
+      throw error;
+    });
+}
+
+export function updateSusafToken(projectId: string, token: string) {
+  return axiosInstance.post(`/susaf/token/${projectId}`, { token })
+    .then(response => response.data)
+    .catch(error => {
+      console.error('Error updating SusAF token:', error);
+      throw error;
+    });
+}
+
 import type { PRIORITY_LEVELS, TASK_STATUSES, SusafCategory } from "./constants"
       
 export interface User {

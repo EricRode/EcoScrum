@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Leaf, LogOut, User, FolderKanban, Plus, Calendar } from "lucide-react"
+import { Leaf, LogOut, User, FolderKanban, Plus, Calendar, RefreshCw, Settings } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 import { useSprintContext } from "@/components/sprint-context"
 import { useProjectContext } from "@/components/project-context"
@@ -16,8 +16,8 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { getAllSprints } from "@/lib/axiosInstance"
-import { useEffect, useMemo, useState } from "react"
+import { getAllSprints, syncSustainabilityEffects, getSusafToken, updateSusafToken } from "@/lib/axiosInstance"
+import { useEffect, useState } from "react"
 import {
   Dialog,
   DialogContent,
@@ -31,6 +31,8 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { AlertCircle, AlertTriangle, CheckCircle2 } from "lucide-react"
 
 export default function Navbar() {
   const { user, logout } = useAuth()
@@ -38,6 +40,9 @@ export default function Navbar() {
   const { projects, selectedProjectId, setSelectedProjectId, createNewProject } = useProjectContext()
   const { toast } = useToast()
 
+  const [isSyncing, setIsSyncing] = useState(false)
+  const [isTokenDialogOpen, setIsTokenDialogOpen] = useState(false)
+  const [tokenData, setTokenData] = useState({ token: "", isLoading: false, error: null })
   const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false)
   const [newProject, setNewProject] = useState({
     name: "",
@@ -65,6 +70,60 @@ export default function Navbar() {
     fetchSprints()
   }, [selectedProjectId])
 
+  useEffect(() => {
+    if (isTokenDialogOpen && selectedProjectId) {
+      fetchToken()
+    }
+  }, [isTokenDialogOpen, selectedProjectId])
+
+  const fetchToken = async () => {
+    if (!selectedProjectId) return
+
+    setTokenData((prev) => ({ ...prev, isLoading: true, error: null }))
+    try {
+      const response = await getSusafToken(selectedProjectId)
+      if (response.success && response.data) {
+        setTokenData({
+          token: response.data.token || "",
+          isLoading: false,
+          error: null,
+        })
+      } else {
+        setTokenData({
+          token: "",
+          isLoading: false,
+          error: response.message || "No token found",
+        })
+      }
+    } catch (error) {
+      setTokenData({
+        token: "",
+        isLoading: false,
+        error: error instanceof Error ? error.message : "Failed to fetch token",
+      })
+    }
+  }
+
+  const handleSaveToken = async () => {
+    if (!selectedProjectId) return
+
+    setTokenData((prev) => ({ ...prev, isLoading: true, error: null }))
+    try {
+      await updateSusafToken(selectedProjectId, tokenData.token)
+      toast({
+        title: "Token updated",
+        description: "SusAF API token has been successfully updated.",
+      })
+      setIsTokenDialogOpen(false)
+    } catch (error) {
+      setTokenData((prev) => ({
+        ...prev,
+        isLoading: false,
+        error: error instanceof Error ? error.message : "Failed to update token",
+      }))
+    }
+  }
+
   const handleCreateProject = async () => {
     try {
       await createNewProject(newProject.name, newProject.description)
@@ -80,6 +139,34 @@ export default function Navbar() {
         description: "Failed to create project.",
         variant: "destructive",
       })
+    }
+  }
+
+  const handleSyncSuSAF = async () => {
+    if (!selectedProjectId) {
+      toast({
+        title: "No project selected",
+        description: "Please select a project to sync SuSAF effects.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsSyncing(true)
+    try {
+      await syncSustainabilityEffects(selectedProjectId)
+      toast({
+        title: "SuSAF effects synced",
+        description: "Successfully synchronized sustainability effects for the project.",
+      })
+    } catch (error) {
+      toast({
+        title: "Sync failed",
+        description: "Failed to sync sustainability effects. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSyncing(false)
     }
   }
 
@@ -151,6 +238,95 @@ export default function Navbar() {
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
+
+              {selectedProjectId && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSyncSuSAF}
+                    disabled={isSyncing}
+                    className="ml-2"
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-2 ${isSyncing ? "animate-spin" : ""}`} />
+                    {isSyncing ? "Syncing..." : "Sync SuSAF"}
+                  </Button>
+
+                  <Dialog open={isTokenDialogOpen} onOpenChange={setIsTokenDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button variant="ghost" size="sm" className="px-2">
+                        <Settings className="h-4 w-4" />
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>SuSAF API Token Settings</DialogTitle>
+                        <DialogDescription>
+                          Configure the API token used to connect to the Sustainability Framework.
+                        </DialogDescription>
+                      </DialogHeader>
+
+                      <div className="space-y-4 py-4">
+                        {tokenData.isLoading ? (
+                          <div className="flex items-center justify-center py-4">
+                            <RefreshCw className="h-5 w-5 animate-spin text-gray-400" />
+                            <span className="ml-2 text-sm text-gray-500">Loading token...</span>
+                          </div>
+                        ) : tokenData.error ? (
+                          <Alert variant="destructive" className="mb-4">
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertTitle>Error</AlertTitle>
+                            <AlertDescription>{tokenData.error}</AlertDescription>
+                          </Alert>
+                        ) : null}
+
+                        <div className="space-y-2">
+                          <Label htmlFor="api-token">API Token</Label>
+                          <Input
+                            id="api-token"
+                            value={tokenData.token}
+                            onChange={(e) => setTokenData((prev) => ({ ...prev, token: e.target.value }))}
+                            placeholder="Enter SuSAF API token"
+                            disabled={tokenData.isLoading}
+                          />
+                          <p className="text-xs text-gray-500">
+                            This token is used to authenticate requests to the Sustainability Assessment Framework.
+                          </p>
+                        </div>
+
+                        {tokenData.token && !tokenData.error && (
+                          <Alert>
+                            <CheckCircle2 className="h-4 w-4" />
+                            <AlertTitle>Token Available</AlertTitle>
+                            <AlertDescription>
+                              SuSAF API token is configured for this project.
+                            </AlertDescription>
+                          </Alert>
+                        )}
+
+                        {!tokenData.token && !tokenData.error && (
+                          <Alert variant="warning">
+                            <AlertTriangle className="h-4 w-4" />
+                            <AlertTitle>No Token Found</AlertTitle>
+                            <AlertDescription>
+                              No SuSAF API token is configured for this project. Please enter a valid token.
+                            </AlertDescription>
+                          </Alert>
+                        )}
+                      </div>
+
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsTokenDialogOpen(false)}>
+                          Cancel
+                        </Button>
+                        <Button onClick={handleSaveToken} disabled={tokenData.isLoading}>
+                          Save Token
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </>
+              )}
             </div>
 
             {selectedProjectId && projectSprints.length > 0 && (
