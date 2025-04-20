@@ -43,6 +43,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { SUSAF_CATEGORIES, SUSAF_EFFECTS } from "@/lib/constants"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { ItemForm } from "@/components/item-form"
+import { UnassignedItemsSelector } from "@/components/unassigned-items-selector"
 
 export default function SprintBoard() {
   const { selectedProjectId } = useProjectContext();
@@ -129,6 +130,8 @@ export default function SprintBoard() {
   const [isItemDialogOpen, setIsItemDialogOpen] = useState(false)
   const [isAddItemDialogOpen, setIsAddItemDialogOpen] = useState(false)
   const [isCreateSprintDialogOpen, setIsCreateSprintDialogOpen] = useState(false)
+  const [isUnassignedItemsDialogOpen, setIsUnassignedItemsDialogOpen] = useState(false)
+  const [newlyCreatedSprintId, setNewlyCreatedSprintId] = useState<string | null>(null)
   const [editedItem, setEditedItem] = useState<Item | null>(null)
 
   // State for new sprint creation
@@ -452,6 +455,10 @@ export default function SprintBoard() {
       const createdSprint = await createSprint(sprintToCreate)
       setIsCreateSprintDialogOpen(false)
       setSelectedSprintId(createdSprint.id)
+      
+      // Store the newly created sprint ID and open the unassigned items dialog
+      setNewlyCreatedSprintId(createdSprint.id)
+      setIsUnassignedItemsDialogOpen(true)
 
       toast({
         title: "Sprint created",
@@ -476,6 +483,27 @@ export default function SprintBoard() {
         description: "Failed to create sprint.",
         variant: "destructive",
       })
+    }
+  }
+
+  const handleItemsAddedToSprint = () => {
+    // Reset items updated flag to refresh the board
+    itemsUpdatedRef.current = false
+    
+    // Reload the sprint data
+    if (selectedSprintId) {
+      const refreshSprintData = async () => {
+        try {
+          const refreshedItems = await useItemsData(selectedSprintId).data
+          if (refreshedItems) {
+            setLocalItems(refreshedItems)
+          }
+        } catch (error) {
+          console.error("Failed to refresh sprint data:", error)
+        }
+      }
+      
+      refreshSprintData()
     }
   }
 
@@ -515,6 +543,20 @@ export default function SprintBoard() {
             <h1 className="text-2xl font-bold">{sprint?.name}</h1>
           </div>
           <div className="flex items-center gap-4">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                // Set the current sprint ID for the unassigned items selector
+                setNewlyCreatedSprintId(selectedSprintId)
+                setIsUnassignedItemsDialogOpen(true)
+              }}
+              disabled={!selectedSprintId}
+              className="flex items-center"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Backlog Items
+            </Button>
+
             <Dialog open={isCreateSprintDialogOpen} onOpenChange={setIsCreateSprintDialogOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline">
@@ -769,6 +811,26 @@ export default function SprintBoard() {
               submitLabel="Add Item"
               isSprintBoard={true} // Set to true for sprint board
             />
+          </DialogContent>
+        </Dialog>
+
+        {/* Unassigned Items Selector Dialog */}
+        <Dialog open={isUnassignedItemsDialogOpen} onOpenChange={setIsUnassignedItemsDialogOpen}>
+          <DialogContent className="sm:max-w-[700px] max-h-[90vh]">
+            <DialogHeader>
+              <DialogTitle>Add Items to New Sprint</DialogTitle>
+              <DialogDescription>
+                Select backlog items to add to your newly created sprint
+              </DialogDescription>
+            </DialogHeader>
+            {newlyCreatedSprintId && selectedProjectId && (
+              <UnassignedItemsSelector
+                sprintId={newlyCreatedSprintId}
+                projectId={selectedProjectId}
+                onClose={() => setIsUnassignedItemsDialogOpen(false)}
+                onItemsAdded={handleItemsAddedToSprint}
+              />
+            )}
           </DialogContent>
         </Dialog>
       </div>

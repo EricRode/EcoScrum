@@ -116,7 +116,7 @@ export default function Backlog() {
     description: "",
     priority: "High",
     sustainable: false,
-    storyPoints: 3,
+    storyPoints: 1,
     status: "To Do",
     sustainabilityPoints: 0,
     relatedSusafEffects: [],
@@ -506,23 +506,6 @@ export default function Backlog() {
                 <SelectItem value="Low">Low</SelectItem>
                 <SelectItem value="Medium">Medium</SelectItem>
                 <SelectItem value="High">High</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label className="mb-2 block">SuSAF Category</Label>
-            <Select value={filters.susafCategory} onValueChange={(value) => handleFilterChange("susafCategory", value)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Filter by category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="All">All Categories</SelectItem>
-                {uniqueCategories.map((category) => (
-                  <SelectItem key={category} value={category}>
-                    {category}
-                  </SelectItem>
-                ))}
               </SelectContent>
             </Select>
           </div>
