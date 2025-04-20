@@ -10,7 +10,7 @@ import { useSprintContext } from "@/components/sprint-context"
 import { useProjectContext } from "@/components/project-context"
 import { useRouter } from "next/navigation"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { getAllSprints, useSprintData, useTasksData } from "@/lib/axiosInstance"
+import { getAllSprints, useSprintData, useItemsData } from "@/lib/axiosInstance"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
 import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart"
 import {
@@ -27,6 +27,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { useState } from "react"
 import { useToast } from "@/hooks/use-toast"
+import LandingPage from "./landing-page/page"
 
 export default function Dashboard() {
   const { user, loading } = useAuth()
@@ -64,32 +65,32 @@ export default function Dashboard() {
   // Get the selected sprint data
   const { data: sprint, loading: sprintLoading } = useSprintData(selectedSprintId, selectedProjectId)
 
-  // Get tasks for the selected sprint
-  const { data: tasks, loading: tasksLoading } = useTasksData(sprint?.id || "", selectedProjectId)
+  // Get items for the selected sprint
+  const { data: items, loading: itemsLoading } = useItemsData(sprint?.id || "", selectedProjectId)
 
-  // Calculate metrics based on tasks
+  // Calculate metrics based on items
   const metrics = useMemo(() => {
-    if (!tasks)
+    if (!items)
       return {
         sustainablePBIs: 0,
         teamVelocity: 0,
         completionRate: 0,
       }
 
-    const totalTasks = tasks.length
-    const sustainableTasks = tasks.filter((t) => t.sustainable).length
-    const completedTasks = tasks.filter((t) => t.status === "Done").length
-    const totalStoryPoints = tasks.reduce((sum, task) => sum + task.storyPoints, 0)
-    const completedStoryPoints = tasks
+    const totalItems = items.length
+    const sustainableItems = items.filter((t) => t.sustainable).length
+    const completedItems = items.filter((t) => t.status === "Done").length
+    const totalStoryPoints = items.reduce((sum, item) => sum + item.storyPoints, 0)
+    const completedStoryPoints = items
       .filter((t) => t.status === "Done")
-      .reduce((sum, task) => sum + task.storyPoints, 0)
+      .reduce((sum, item) => sum + item.storyPoints, 0)
 
     return {
-      sustainablePBIs: totalTasks > 0 ? Math.round((sustainableTasks / totalTasks) * 100) : 0,
+      sustainablePBIs: totalItems > 0 ? Math.round((sustainableItems / totalItems) * 100) : 0,
       teamVelocity: completedStoryPoints,
-      completionRate: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
+      completionRate: totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0,
     }
-  }, [tasks])
+  }, [items])
 
   // Prepare data for the sustainability trend chart
   const trendChartData = useMemo(() => {
@@ -102,7 +103,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!loading && !user) {
-      router.push("/login")
+      router.push("/landing-page")
     }
   }, [loading, user, router])
 
@@ -334,13 +335,13 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="h-48 space-y-2">
-                {tasks && (
+                {items && (
                   <>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <div className="h-3 w-3 rounded-full bg-blue-500"></div>
                         <span className="text-sm">
-                          Technical ({tasks.filter((t) => t.susafCategory === "Technical").length})
+                          Technical ({items.filter((t) => t.susafCategory === "Technical").length})
                         </span>
                       </div>
                       <div className="h-6 w-full max-w-[200px] rounded-full bg-blue-100">
@@ -348,8 +349,8 @@ export default function Dashboard() {
                           className="h-full rounded-full bg-blue-500"
                           style={{
                             width: `${
-                              tasks.length > 0
-                                ? (tasks.filter((t) => t.susafCategory === "Technical").length / tasks.length) * 100
+                              items.length > 0
+                                ? (items.filter((t) => t.susafCategory === "Technical").length / items.length) * 100
                                 : 0
                             }%`,
                           }}
@@ -360,7 +361,7 @@ export default function Dashboard() {
                       <div className="flex items-center gap-2">
                         <div className="h-3 w-3 rounded-full bg-blue-500"></div>
                         <span className="text-sm">
-                          Human ({tasks.filter((t) => t.susafCategory === "Human").length})
+                          Human ({items.filter((t) => t.susafCategory === "Human").length})
                         </span>
                       </div>
                       <div className="h-6 w-full max-w-[200px] rounded-full bg-blue-100">
@@ -368,8 +369,8 @@ export default function Dashboard() {
                           className="h-full rounded-full bg-blue-500"
                           style={{
                             width: `${
-                              tasks.length > 0
-                                ? (tasks.filter((t) => t.susafCategory === "Human").length / tasks.length) * 100
+                              items.length > 0
+                                ? (items.filter((t) => t.susafCategory === "Human").length / items.length) * 100
                                 : 0
                             }%`,
                           }}
@@ -380,7 +381,7 @@ export default function Dashboard() {
                       <div className="flex items-center gap-2">
                         <div className="h-3 w-3 rounded-full bg-blue-500"></div>
                         <span className="text-sm">
-                          Environmental ({tasks.filter((t) => t.susafCategory === "Environmental").length})
+                          Environmental ({items.filter((t) => t.susafCategory === "Environmental").length})
                         </span>
                       </div>
                       <div className="h-6 w-full max-w-[200px] rounded-full bg-blue-100">
@@ -388,8 +389,8 @@ export default function Dashboard() {
                           className="h-full rounded-full bg-blue-500"
                           style={{
                             width: `${
-                              tasks.length > 0
-                                ? (tasks.filter((t) => t.susafCategory === "Environmental").length / tasks.length) * 100
+                              items.length > 0
+                                ? (items.filter((t) => t.susafCategory === "Environmental").length / items.length) * 100
                                 : 0
                             }%`,
                           }}
@@ -400,7 +401,7 @@ export default function Dashboard() {
                       <div className="flex items-center gap-2">
                         <div className="h-3 w-3 rounded-full bg-blue-500"></div>
                         <span className="text-sm">
-                          Social ({tasks.filter((t) => t.susafCategory === "Social").length})
+                          Social ({items.filter((t) => t.susafCategory === "Social").length})
                         </span>
                       </div>
                       <div className="h-6 w-full max-w-[200px] rounded-full bg-blue-100">
@@ -408,8 +409,8 @@ export default function Dashboard() {
                           className="h-full rounded-full bg-blue-500"
                           style={{
                             width: `${
-                              tasks.length > 0
-                                ? (tasks.filter((t) => t.susafCategory === "Social").length / tasks.length) * 100
+                              items.length > 0
+                                ? (items.filter((t) => t.susafCategory === "Social").length / items.length) * 100
                                 : 0
                             }%`,
                           }}
@@ -420,7 +421,7 @@ export default function Dashboard() {
                       <div className="flex items-center gap-2">
                         <div className="h-3 w-3 rounded-full bg-blue-500"></div>
                         <span className="text-sm">
-                          Economical ({tasks.filter((t) => t.susafCategory === "Economical").length})
+                          Economical ({items.filter((t) => t.susafCategory === "Economical").length})
                         </span>
                       </div>
                       <div className="h-6 w-full max-w-[200px] rounded-full bg-blue-100">
@@ -428,8 +429,8 @@ export default function Dashboard() {
                           className="h-full rounded-full bg-blue-500"
                           style={{
                             width: `${
-                              tasks.length > 0
-                                ? (tasks.filter((t) => t.susafCategory === "Economical").length / tasks.length) * 100
+                              items.length > 0
+                                ? (items.filter((t) => t.susafCategory === "Economical").length / items.length) * 100
                                 : 0
                             }%`,
                           }}
@@ -616,18 +617,18 @@ export default function Dashboard() {
               <ListTodo className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{tasks?.length || 0}</div>
+              <div className="text-2xl font-bold">{items?.length || 0}</div>
               <p className="text-xs text-muted-foreground mt-4">Total Backlog Items</p>
               <div className="mt-2 flex items-center gap-2">
                 <div className="h-2 w-2 rounded-full bg-emerald-500"></div>
                 <p className="text-xs text-muted-foreground">
-                  {tasks?.filter((t) => t.sustainable).length || 0} Sustainable Items
+                  {items?.filter((t) => t.sustainable).length || 0} Sustainable Items
                 </p>
               </div>
               <div className="mt-1 flex items-center gap-2">
                 <div className="h-2 w-2 rounded-full bg-gray-400"></div>
                 <p className="text-xs text-muted-foreground">
-                  {tasks?.filter((t) => !t.sustainable).length || 0} Regular Items
+                  {items?.filter((t) => !t.sustainable).length || 0} Regular Items
                 </p>
               </div>
             </CardContent>

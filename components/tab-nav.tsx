@@ -22,6 +22,7 @@ export function TabNav() {
     { name: "Backlog", href: "/backlog", icon: ListTodo },
     { name: "Team", href: "/team", icon: Users },
     { name: "Education", href: "/education", icon: BookOpen },
+    { name: "SuSAF", href: "/susaf", icon: BookOpen },
   ]
 
   return (

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from "react"
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd"
-import { CheckCircle, MessageCircle, Menu, Plus, Trash2, Calendar } from "lucide-react"
+import { CheckCircle, MessageCircle, Menu, Plus, Trash2, Calendar, Leaf } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -20,17 +20,17 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   useSprintData,
-  useTasksData,
-  updateTaskStatus,
+  useItemsData,
+  updateItemStatus,
   completeSprintAndRedirect,
-  addTask,
-  deleteTask,
-  updateTask,
+  addItem,
+  deleteItem,
+  updateItem,
   getAllUsers,
   getAllSprints,
   createSprint,
   getSustainabilityEffects,
-  type Task,
+  type Item,
   User,
 } from "@/lib/axiosInstance"
 import { useRouter } from "next/navigation"
@@ -42,6 +42,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Checkbox } from "@/components/ui/checkbox"
 import { SUSAF_CATEGORIES, SUSAF_EFFECTS } from "@/lib/constants"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { ItemForm } from "@/components/item-form"
+import { UnassignedItemsSelector } from "@/components/unassigned-items-selector"
 
 export default function SprintBoard() {
   const { selectedProjectId } = useProjectContext();
@@ -78,24 +80,24 @@ export default function SprintBoard() {
 
   // Use the selected sprint from context
   const { data: sprint, loading: sprintLoading } = useSprintData(selectedSprintId || undefined, selectedProjectId)
-  const { data: tasks, loading: tasksLoading } = useTasksData(sprint?.id || "")
+  const { data: items, loading: itemsLoading } = useItemsData(sprint?.id || "")
 
-  // Local state for tasks to enable immediate UI updates
-  const [localTasks, setLocalTasks] = useState<Task[]>([])
+  // Local state for items to enable immediate UI updates
+  const [localItems, setLocalItems] = useState<Item[]>([])
 
-  // Ref to track if we've already updated the local tasks
-  const tasksUpdatedRef = useRef(false)
+  // Ref to track if we've already updated the local items
+  const itemsUpdatedRef = useRef(false)
 
-  // Update local tasks when the fetched tasks change - only once when tasks are loaded
+  // Update local items when the fetched items change - only once when items are loaded
   useEffect(() => {
-    if (tasks && tasks.length > 0 && !tasksUpdatedRef.current) {
-      tasksUpdatedRef.current = true
-      setLocalTasks(tasks)
-    } else if (tasks && tasks.length > 0 && JSON.stringify(tasks) !== JSON.stringify(localTasks)) {
-      // Only update if the tasks have actually changed (deep comparison)
-      setLocalTasks(tasks)
+    if (items && items.length > 0 && !itemsUpdatedRef.current) {
+      itemsUpdatedRef.current = true
+      setLocalItems(items)
+    } else if (items && items.length > 0 && JSON.stringify(items) !== JSON.stringify(localItems)) {
+      // Only update if the items have actually changed (deep comparison)
+      setLocalItems(items)
     }
-  }, [tasks, localTasks])
+  }, [items, localItems])
 
   // Use useMemo to ensure stable reference for users
   const [allUsers, setAllUsers] = useState<User[]>([])
@@ -113,22 +115,24 @@ export default function SprintBoard() {
     fetchUsers()
   }, [])
 
-  // Group tasks by status and sort by order
-  const tasksByStatus = useMemo(() => {
-    if (!localTasks.length) return { "To Do": [], "In Progress": [], Done: [] }
+  // Group items by status and sort by order
+  const itemsByStatus = useMemo(() => {
+    if (!localItems.length) return { "To Do": [], "In Progress": [], Done: [] }
 
     return {
-      "To Do": localTasks.filter((t) => t.status === "To Do").sort((a, b) => a.order - b.order),
-      "In Progress": localTasks.filter((t) => t.status === "In Progress").sort((a, b) => a.order - b.order),
-      Done: localTasks.filter((t) => t.status === "Done").sort((a, b) => a.order - b.order),
+      "To Do": localItems.filter((t) => t.status === "To Do").sort((a, b) => a.order - b.order),
+      "In Progress": localItems.filter((t) => t.status === "In Progress").sort((a, b) => a.order - b.order),
+      Done: localItems.filter((t) => t.status === "Done").sort((a, b) => a.order - b.order),
     }
-  }, [localTasks])
+  }, [localItems])
 
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
-  const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false)
-  const [isAddTaskDialogOpen, setIsAddTaskDialogOpen] = useState(false)
+  const [selectedItem, setSelectedItem] = useState<Item | null>(null)
+  const [isItemDialogOpen, setIsItemDialogOpen] = useState(false)
+  const [isAddItemDialogOpen, setIsAddItemDialogOpen] = useState(false)
   const [isCreateSprintDialogOpen, setIsCreateSprintDialogOpen] = useState(false)
-  const [editedTask, setEditedTask] = useState<Task | null>(null)
+  const [isUnassignedItemsDialogOpen, setIsUnassignedItemsDialogOpen] = useState(false)
+  const [newlyCreatedSprintId, setNewlyCreatedSprintId] = useState<string | null>(null)
+  const [editedItem, setEditedItem] = useState<Item | null>(null)
 
   // State for new sprint creation
   const [newSprint, setNewSprint] = useState({
@@ -140,7 +144,7 @@ export default function SprintBoard() {
     sustainabilityScore: 0,
     previousScore: 0,
     effectsTackled: 0,
-    tasks: [] as string[],
+    items: [] as string[],
   })
 
   // State for SuSAF effects selection
@@ -150,16 +154,16 @@ export default function SprintBoard() {
   // State for sustainability effects
   const [sustainabilityEffects, setSustainabilityEffects] = useState<any[]>([])
   const [selectedEffects, setSelectedEffects] = useState<string[]>([])
-  const [editTaskSelectedEffects, setEditTaskSelectedEffects] = useState<string[]>([])
+  const [editItemSelectedEffects, setEditItemSelectedEffects] = useState<string[]>([])
 
-  const newTaskInitialState = {
+  const newItemInitialState = {
     title: "",
     description: "",
     priority: "Medium" as "Medium" | "Low" | "Low+" | "Medium+" | "High" | "High+",
     sustainabilityContext: "",
     status: "To Do" as "To Do" | "In Progress" | "Done",
     comments: 0,
-    subtasks: 0,
+    subitems: 0,
     sustainabilityWeight: 5,
     assignedTo: "",
     sprintId: "",
@@ -171,9 +175,9 @@ export default function SprintBoard() {
     relatedSusafEffects: [] as string[],
   }
 
-  const [newTask, setNewTask] = useState<Partial<Task>>(newTaskInitialState)
+  const [newItem, setNewItem] = useState<Partial<Item>>(newItemInitialState)
 
-  // Ref to track if we've updated the newTask.sprintId
+  // Ref to track if we've updated the newItem.sprintId
   const sprintIdUpdatedRef = useRef(false)
 
   // Set the selected sprint ID if not already set - only once when component mounts
@@ -187,15 +191,15 @@ export default function SprintBoard() {
     }
   }, [allSprints, selectedSprintId])
 
-  // Update newTask.sprintId when sprint changes - only if it's different
+  // Update newItem.sprintId when sprint changes - only if it's different
   useEffect(() => {
-    if (sprint?.id && (!newTask.sprintId || newTask.sprintId !== sprint.id)) {
-      setNewTask((prev) => ({
+    if (sprint?.id && (!newItem.sprintId || newItem.sprintId !== sprint.id)) {
+      setNewItem((prev) => ({
         ...prev,
         sprintId: sprint.id,
       }))
     }
-  }, [sprint?.id, newTask.sprintId])
+  }, [sprint?.id, newItem.sprintId])
 
   // Update available effects when category changes
   useEffect(() => {
@@ -240,7 +244,7 @@ export default function SprintBoard() {
     }
   }, [authLoading, user, router])
 
-  if (authLoading || sprintLoading || tasksLoading || !user) {
+  if (authLoading || sprintLoading || itemsLoading || !user) {
     return null // Will redirect to login if not authenticated
   }
 
@@ -253,51 +257,55 @@ export default function SprintBoard() {
     // Dropped in the same place
     if (destination.droppableId === source.droppableId && destination.index === source.index) return
 
-    // Find the task being dragged
-    const taskToMove = localTasks.find((t) => t.id === draggableId)
-    if (!taskToMove) return
+    // Find the item being dragged
+    const itemToMove = localItems.find((t) => t.id === draggableId)
+    if (!itemToMove) return
 
-    // Create a new array of tasks with the updated status and order
-    const updatedTasks = localTasks.map((task) => {
-      // This is the task we're moving
-      if (task.id === draggableId) {
+    // Create a new array of items with the updated status and order
+    const updatedItems = localItems.map((item) => {
+      // This is the item we're moving
+      if (item.id === draggableId) {
         return {
-          ...task,
+          ...item,
           status: destination.droppableId as "To Do" | "In Progress" | "Done",
           order: destination.index,
         }
       }
 
-      // Adjust order of other tasks in the destination column
-      if (task.status === destination.droppableId && task.id !== draggableId) {
-        if (destination.index <= task.order) {
-          return { ...task, order: task.order + 1 }
+      // Adjust order of other items in the destination column
+      if (item.status === destination.droppableId && item.id !== draggableId) {
+        if (destination.index <= item.order) {
+          return { ...item, order: item.order + 1 }
         }
       }
 
-      // Adjust order of tasks in the source column if moving between columns
-      if (source.droppableId !== destination.droppableId && task.status === source.droppableId) {
-        if (task.order > source.index) {
-          return { ...task, order: task.order - 1 }
+      // Adjust order of items in the source column if moving between columns
+      if (source.droppableId !== destination.droppableId && item.status === source.droppableId) {
+        if (item.order > source.index) {
+          return { ...item, order: item.order - 1 }
         }
       }
 
-      return task
+      return item
     })
 
     // Update local state immediately for responsive UI
-    setLocalTasks(updatedTasks)
+    setLocalItems(updatedItems)
 
     // Update the database
-    updateTaskStatus(draggableId, destination.droppableId as "To Do" | "In Progress" | "Done").catch((error) => {
-      console.error("Error updating task status:", error)
-      // Revert to original tasks if there's an error
-      if (tasks) {
-        setLocalTasks([...tasks])
+    updateItem(draggableId, {
+      ...itemToMove,
+      status: destination.droppableId as "To Do" | "In Progress" | "Done",
+      order: destination.index
+    }).catch((error) => {
+      console.error("Error updating item status:", error)
+      // Revert to original items if there's an error
+      if (items) {
+        setLocalItems([...items])
       }
       toast({
         title: "Error",
-        description: "Failed to update task status.",
+        description: "Failed to update item status.",
         variant: "destructive",
       })
     })
@@ -309,22 +317,22 @@ export default function SprintBoard() {
     router.push("/retrospective")
   }
 
-  const openTaskDialog = (task: Task) => {
-    setSelectedTask(task)
-    setEditedTask({ ...task })
-    // Initialize selected effects from the task (try both possible locations)
-    setEditTaskSelectedEffects(task.sustainabilityEffects || task.relatedSusafEffects || [])
-    setIsTaskDialogOpen(true)
+  const openItemDialog = (item: Item) => {
+    setSelectedItem(item)
+    setEditedItem({ ...item })
+    // Initialize selected effects from the item (try both possible locations)
+    setEditItemSelectedEffects(item.relatedSusafEffects || item.relatedSusafEffects || [])
+    setIsItemDialogOpen(true)
   }
 
-  const handleTaskChange = (key: keyof Task, value: any) => {
-    if (editedTask) {
-      setEditedTask({ ...editedTask, [key]: value })
+  const handleItemChange = (key: keyof Item, value: any) => {
+    if (editedItem) {
+      setEditedItem({ ...editedItem, [key]: value })
     }
   }
 
-  const handleNewTaskChange = (key: keyof Task, value: any) => {
-    setNewTask((prev) => ({ ...prev, [key]: value }))
+  const handleNewItemChange = (key: keyof Item, value: any) => {
+    setNewItem((prev) => ({ ...prev, [key]: value }))
   }
 
   const toggleEffect = (effectId: string) => {
@@ -336,93 +344,109 @@ export default function SprintBoard() {
   };
 
   const toggleEditEffect = (effectId: string) => {
-    setEditTaskSelectedEffects(prev => 
+    setEditItemSelectedEffects(prev => 
       prev.includes(effectId)
         ? prev.filter(id => id !== effectId)
         : [...prev, effectId]
     )
     
-    // Also update the editedTask
-    if (editedTask) {
-      const updatedEffects = editTaskSelectedEffects.includes(effectId)
-        ? editTaskSelectedEffects.filter(id => id !== effectId)
-        : [...editTaskSelectedEffects, effectId]
+    // Also update the editedItem
+    if (editedItem) {
+      const updatedEffects = editItemSelectedEffects.includes(effectId)
+        ? editItemSelectedEffects.filter(id => id !== effectId)
+        : [...editItemSelectedEffects, effectId]
         
-      setEditedTask({
-        ...editedTask,
-        sustainabilityEffects: updatedEffects,
-        relatedSusafEffects: updatedEffects
+      setEditedItem({
+        ...editedItem,
+        relatedSusafEffects: updatedEffects,
       })
     }
   }
 
   const handleSaveChanges = async () => {
-    if (editedTask) {
+    if (editedItem) {
       // Make sure effects are properly included in the update
-      const taskToUpdate = {
-        ...editedTask,
-        sustainabilityEffects: editTaskSelectedEffects,
-        relatedSusafEffects: editTaskSelectedEffects
+      const itemToUpdate = {
+        ...editedItem,
+        sustainabilityEffects: editItemSelectedEffects,
+        relatedSusafEffects: editItemSelectedEffects
       }
       
-      await updateTask(taskToUpdate.id, taskToUpdate)
+      await updateItem(itemToUpdate.id, itemToUpdate)
 
-      // Update local state
-      setLocalTasks(localTasks.map((task) => (task.id === taskToUpdate.id ? taskToUpdate : task)))
+      // If the item was unassigned from the current sprint, remove it from local state
+      if (itemToUpdate.sprintId === "" || itemToUpdate.sprintId !== selectedSprintId) {
+        setLocalItems(prevItems => prevItems.filter(item => item.id !== itemToUpdate.id))
+      } else {
+        // Otherwise, just update it in the local state
+        setLocalItems(prevItems => prevItems.map((item) => (item.id === itemToUpdate.id ? itemToUpdate : item)))
+      }
 
-      setIsTaskDialogOpen(false)
+      setIsItemDialogOpen(false)
       toast({
-        title: "Task updated",
-        description: "Task has been updated successfully.",
+        title: itemToUpdate.sprintId ? "Item updated" : "Item unassigned",
+        description: itemToUpdate.sprintId ? 
+          "Item has been updated successfully." : 
+          "Item has been unassigned from the sprint and moved to the backlog.",
       })
     }
   }
 
-  const handleAddTask = async () => {
+  const handleAddItem = async () => {
     try {
-      const taskToAdd = {
-        ...newTask,
+      if (!selectedProjectId) {
+        toast({
+          title: "Error",
+          description: "No project selected. Please select a project first.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      const itemToAdd = {
+        ...newItem,
         sprintId: sprint?.id || "",
-        projectId: selectedProjectId || "", 
-        sustainabilityEffects: selectedEffects, // Save this field
-        relatedSusafEffects: selectedEffects, // Also save to relatedSusafEffects for compatibility
-      } as Omit<Task, "id" | "order">
+        projectId: selectedProjectId, // Ensure projectId is explicitly set
+        relatedSusafEffects: selectedEffects,
+      } as Omit<Item, "id" | "order">;
 
-      const newTaskWithId = await addTask(taskToAdd)
+      console.log("Creating item with data:", itemToAdd); // Log for debugging
+      const newItemWithId = await addItem(itemToAdd);
 
       // Add to local state
-      setLocalTasks((prev) => [...prev, newTaskWithId as Task])
+      setLocalItems((prev) => [...prev, newItemWithId as Item]);
 
-      setIsAddTaskDialogOpen(false)
+      setIsAddItemDialogOpen(false);
       toast({
-        title: "Task added",
-        description: "New task has been added successfully.",
-      })
+        title: "Item added",
+        description: "New item has been added successfully.",
+      });
 
       // Reset form
-      setNewTask(newTaskInitialState)
-      setSelectedCategory("")
-      setSelectedEffects([]) // Reset selected effects
+      setNewItem(newItemInitialState);
+      setSelectedCategory("");
+      setSelectedEffects([]);
     } catch (error) {
+      console.error("Error adding item:", error);
       toast({
         title: "Error",
-        description: "Failed to add task.",
+        description: "Failed to add item.",
         variant: "destructive",
-      })
+      });
     }
-  }
+  };
 
-  const handleDeleteTask = async () => {
-    if (selectedTask) {
-      await deleteTask(selectedTask.id)
+  const handleDeleteItem = async () => {
+    if (selectedItem) {
+      await deleteItem(selectedItem.id)
 
       // Remove from local state
-      setLocalTasks(localTasks.filter((task) => task.id !== selectedTask.id))
+      setLocalItems(localItems.filter((item) => item.id !== selectedItem.id))
 
-      setIsTaskDialogOpen(false)
+      setIsItemDialogOpen(false)
       toast({
-        title: "Task deleted",
-        description: "Task has been deleted successfully.",
+        title: "Item deleted",
+        description: "Item has been deleted successfully.",
       })
     }
   }
@@ -435,13 +459,17 @@ export default function SprintBoard() {
         sustainabilityScore: 0,
         previousScore: sprint?.sustainabilityScore || 0,
         effectsTackled: 0,
-        tasks: [],
+        items: [],
         projectId: selectedProjectId, 
       }
 
       const createdSprint = await createSprint(sprintToCreate)
       setIsCreateSprintDialogOpen(false)
       setSelectedSprintId(createdSprint.id)
+      
+      // Store the newly created sprint ID and open the unassigned items dialog
+      setNewlyCreatedSprintId(createdSprint.id)
+      setIsUnassignedItemsDialogOpen(true)
 
       toast({
         title: "Sprint created",
@@ -458,7 +486,7 @@ export default function SprintBoard() {
         sustainabilityScore: 0,
         previousScore: 0,
         effectsTackled: 0,
-        tasks: [],
+        items: [],
       })
     } catch (error) {
       toast({
@@ -466,6 +494,27 @@ export default function SprintBoard() {
         description: "Failed to create sprint.",
         variant: "destructive",
       })
+    }
+  }
+
+  const handleItemsAddedToSprint = () => {
+    // Reset items updated flag to refresh the board
+    itemsUpdatedRef.current = false
+    
+    // Reload the sprint data
+    if (selectedSprintId) {
+      const refreshSprintData = async () => {
+        try {
+          const refreshedItems = await useItemsData(selectedSprintId).data
+          if (refreshedItems) {
+            setLocalItems(refreshedItems)
+          }
+        } catch (error) {
+          console.error("Failed to refresh sprint data:", error)
+        }
+      }
+      
+      refreshSprintData()
     }
   }
 
@@ -477,27 +526,22 @@ export default function SprintBoard() {
   const handleSprintChange = (sprintId: string) => {
     if (sprintId !== selectedSprintId) {
       setSelectedSprintId(sprintId)
-      // Reset the tasks updated flag when changing sprints
-      tasksUpdatedRef.current = false
+      // Reset the items updated flag when changing sprints
+      itemsUpdatedRef.current = false
     }
   }
 
-  const handleSusafCategoryChange = (category: string) => {
-    setSelectedCategory(category)
-    handleNewTaskChange("susafCategory", category)
-  }
-
   const handleSusafEffectsChange = (effect: string) => {
-    const currentEffects = newTask.relatedSusafEffects || []
+    const currentEffects = newItem.relatedSusafEffects || []
     if (currentEffects.includes(effect)) {
       // Remove the effect if already selected
-      handleNewTaskChange(
+      handleNewItemChange(
         "relatedSusafEffects",
         currentEffects.filter((e) => e !== effect),
       )
     } else {
       // Add the effect
-      handleNewTaskChange("relatedSusafEffects", [...currentEffects, effect])
+      handleNewItemChange("relatedSusafEffects", [...currentEffects, effect])
     }
   }
 
@@ -510,6 +554,20 @@ export default function SprintBoard() {
             <h1 className="text-2xl font-bold">{sprint?.name}</h1>
           </div>
           <div className="flex items-center gap-4">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                // Set the current sprint ID for the unassigned items selector
+                setNewlyCreatedSprintId(selectedSprintId)
+                setIsUnassignedItemsDialogOpen(true)
+              }}
+              disabled={!selectedSprintId}
+              className="flex items-center"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Backlog Items
+            </Button>
+
             <Dialog open={isCreateSprintDialogOpen} onOpenChange={setIsCreateSprintDialogOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline">
@@ -588,9 +646,18 @@ export default function SprintBoard() {
 
         <div className="mb-6 p-4 bg-gray-50 rounded-md">
           <h2 className="text-lg font-medium mb-2">Sprint Sustainability Status</h2>
-          <div className="p-4 bg-gray-100 rounded-md">
-            <div className="text-sm font-medium">Sprint Sustainability Goal:</div>
-            <div>{sprint?.goal}</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-4 bg-gray-100 rounded-md">
+              <div className="text-sm font-medium">Sprint Sustainability Goal:</div>
+              <div>{sprint?.goal}</div>
+            </div>
+            <div className="p-4 bg-gray-100 rounded-md">
+              <div className="text-sm font-medium">Current Sustainability Score:</div>
+              <div className="flex items-center">
+                <span className="text-xl font-bold text-emerald-600">{sprint?.sustainabilityScore || 0}</span>
+                <span className="text-sm text-gray-500 ml-2">points</span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -606,7 +673,7 @@ export default function SprintBoard() {
                   ></div>
                   <h2 className="text-lg font-medium">{column}</h2>
                   {column === "To Do" && (
-                    <Button variant="ghost" size="sm" className="ml-auto" onClick={() => setIsAddTaskDialogOpen(true)}>
+                    <Button variant="ghost" size="sm" className="ml-auto" onClick={() => setIsAddItemDialogOpen(true)}>
                       <Plus className="h-4 w-4" />
                     </Button>
                   )}
@@ -618,39 +685,33 @@ export default function SprintBoard() {
                       ref={provided.innerRef}
                       className="min-h-[500px] bg-gray-50 rounded-md space-y-3 p-3"
                     >
-                      {tasksByStatus[column].map((task, index) => (
-                        <Draggable key={task.id} draggableId={task.id} index={index}>
+                      {itemsByStatus[column].map((item, index) => (
+                        <Draggable key={item.id} draggableId={item.id} index={index}>
                           {(provided) => (
                             <div
                               ref={provided.innerRef}
                               {...provided.draggableProps}
                               {...provided.dragHandleProps}
-                              onClick={() => openTaskDialog(task)}
+                              onClick={() => openItemDialog(item)}
                               className="bg-white p-4 rounded-md border shadow-sm cursor-pointer"
                             >
                               <div className="mb-2">
-                                <h3 className="font-medium">{task.title}</h3>
-                                <p className="text-sm text-gray-500 line-clamp-2">{task.description}</p>
+                                <h3 className="font-medium">{item.title}</h3>
+                                <p className="text-sm text-gray-500 line-clamp-2">{item.description}</p>
                               </div>
                               <div className="flex flex-wrap gap-2 mb-2">
                                 <Badge
                                   className={
-                                    task.priority === "Low"
+                                    item.priority === "Low"
                                       ? "bg-blue-100 text-blue-800"
-                                      : task.priority === "Low+"
-                                        ? "bg-blue-200 text-blue-900"
-                                        : task.priority === "Medium"
+                                      : item.priority === "Medium"
                                           ? "bg-yellow-100 text-yellow-800"
-                                          : task.priority === "Medium+"
-                                            ? "bg-yellow-200 text-yellow-900"
-                                            : task.priority === "High"
-                                              ? "bg-red-100 text-red-800"
-                                              : "bg-red-200 text-red-900"
+                                          : "bg-red-100 text-red-800"
                                   }
                                 >
-                                  {task.priority}
+                                  {item.sustainable ? `${item.priority}+` : item.priority}
                                 </Badge>
-                                {task.sustainable && (
+                                {item.sustainable && (
                                   <Badge
                                     variant="outline"
                                     className="bg-emerald-50 text-emerald-700 border-emerald-200"
@@ -659,25 +720,50 @@ export default function SprintBoard() {
                                   </Badge>
                                 )}
                               </div>
-                              <div className="flex justify-between items-center">
+                              <div className="flex justify-between items-center mb-2">
                                 <div className="flex items-center gap-3 text-gray-500">
-                                  {task.comments > 0 && (
-                                    <div className="flex items-center gap-1">
-                                      <MessageCircle className="h-3 w-3" />
-                                      <span className="text-xs">{task.comments}</span>
+                                  {/* Story points display */}
+                                  <div className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-md">
+                                    <span className="text-xs font-medium">SP</span>
+                                    <span className="text-xs">{item.storyPoints}</span>
+                                  </div>
+                                  
+                                  {/* Sustainability points display */}
+                                  {(item.sustainabilityPoints > 0 || item.sustainable) && (
+                                    <div className="flex items-center gap-1 bg-emerald-50 px-2 py-1 rounded-md">
+                                      <span className="text-xs font-medium text-emerald-700">SUS</span>
+                                      <span className="text-xs text-emerald-700">{item.sustainabilityPoints || 0}</span>
                                     </div>
                                   )}
-                                  {task.subtasks > 0 && (
-                                    <div className="flex items-center gap-1">
-                                      <CheckCircle className="h-3 w-3" />
-                                      <span className="text-xs">{task.subtasks}</span>
+                                  
+                                  {/* Sustainability effects count */}
+                                  {item.relatedSusafEffects && item.relatedSusafEffects.length > 0 && (
+                                    <div className="flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-md">
+                                      <Leaf className="h-3 w-3 text-amber-700" />
+                                      <span className="text-xs text-amber-700">{item.relatedSusafEffects.length}</span>
                                     </div>
                                   )}
                                 </div>
-                                {task.assignedTo && (
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <div className="flex items-center gap-3 text-gray-500">
+                                  {item.comments > 0 && (
+                                    <div className="flex items-center gap-1">
+                                      <MessageCircle className="h-3 w-3" />
+                                      <span className="text-xs">{item.comments}</span>
+                                    </div>
+                                  )}
+                                  {item.subitems > 0 && (
+                                    <div className="flex items-center gap-1">
+                                      <CheckCircle className="h-3 w-3" />
+                                      <span className="text-xs">{item.subitems}</span>
+                                    </div>
+                                  )}
+                                </div>
+                                {item.assignedTo && (
                                   <Avatar className="h-6 w-6">
-                                    <AvatarImage src={getUserById(task.assignedTo)?.avatar || "/placeholder.svg"} />
-                                    <AvatarFallback>{getUserById(task.assignedTo)?.name.charAt(0)}</AvatarFallback>
+                                    <AvatarImage src={getUserById(item.assignedTo)?.avatar || "/placeholder.svg"} />
+                                    <AvatarFallback>{getUserById(item.assignedTo)?.name.charAt(0)}</AvatarFallback>
                                   </Avatar>
                                 )}
                               </div>
@@ -694,504 +780,77 @@ export default function SprintBoard() {
           </div>
         </DragDropContext>
 
-        {/* Task Edit Dialog */}
-        <Dialog open={isTaskDialogOpen} onOpenChange={setIsTaskDialogOpen}>
+        {/* Item Edit Dialog */}
+        <Dialog open={isItemDialogOpen} onOpenChange={setIsItemDialogOpen}>
           <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>{selectedTask?.title}</DialogTitle>
-              <DialogDescription>View and edit task details</DialogDescription>
+              <DialogTitle>{selectedItem?.title}</DialogTitle>
+              <DialogDescription>View and edit item details</DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>PBI Title</Label>
-                <Input value={editedTask?.title || ""} onChange={(e) => handleTaskChange("title", e.target.value)} />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Description</Label>
-                <Textarea
-                  value={editedTask?.description || ""}
-                  onChange={(e) => handleTaskChange("description", e.target.value)}
-                  className="resize-none h-24"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Priority</Label>
-                  <Select
-                    value={editedTask?.priority || "Medium"}
-                    onValueChange={(value) => handleTaskChange("priority", value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select priority" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Low">Low</SelectItem>
-                      <SelectItem value="Low+">Low+</SelectItem>
-                      <SelectItem value="Medium">Medium</SelectItem>
-                      <SelectItem value="Medium+">Medium+</SelectItem>
-                      <SelectItem value="High">High</SelectItem>
-                      <SelectItem value="High+">High+</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Sprint Assignment</Label>
-                  <Select
-                    value={editedTask?.sprintId || ""}
-                    onValueChange={(value) => handleTaskChange("sprintId", value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select sprint" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {allSprints.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>
-                          {s.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Assigned Person</Label>
-                <Select
-                  value={editedTask?.assignedTo || ""}
-                  onValueChange={(value) => handleTaskChange("assignedTo", value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a person..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {allUsers.map((user) => (
-                      <SelectItem key={user.id} value={user.id}>
-                        {user.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Sustainability Context</Label>
-                <Textarea
-                  value={editedTask?.sustainabilityContext || ""}
-                  onChange={(e) => handleTaskChange("sustainabilityContext", e.target.value)}
-                  className="resize-none h-16"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Sustainability Effects</Label>
-                {sustainabilityEffects.length > 0 ? (
-                  <ScrollArea className="h-[250px] border rounded-md p-4">
-                    <div className="space-y-6">
-                      {sustainabilityEffects.map((dimension) => (
-                        <div key={dimension._id} className="space-y-2">
-                          <h3 className="font-medium text-sm text-gray-900 bg-gray-100 p-2 rounded">
-                            {dimension.name}: {dimension.question}
-                          </h3>
-                          
-                          <div className="ml-2 space-y-3">
-                            {dimension.effects && dimension.effects.map((effect) => (
-                              <div key={effect._id} className="flex items-start space-x-2">
-                                <Checkbox
-                                  id={`edit-effect-${effect._id}`}
-                                  checked={editTaskSelectedEffects.includes(effect._id)}
-                                  onCheckedChange={() => toggleEditEffect(effect._id)}
-                                  className="mt-1"
-                                />
-                                <div>
-                                  <div className="flex items-center gap-2">
-                                    <Label htmlFor={`edit-effect-${effect._id}`} className="font-medium text-sm">
-                                      {effect.description}
-                                    </Label>
-                                    <Badge 
-                                      variant="outline" 
-                                      className={effect.is_positive ? 
-                                        "bg-green-50 text-green-700 border-green-200" : 
-                                        "bg-amber-50 text-amber-700 border-amber-200"
-                                      }
-                                    >
-                                      {effect.is_positive ? "Positive" : "Negative"}
-                                    </Badge>
-                                  </div>
-                                  <div className="text-xs text-gray-500 mt-1 ml-1">
-                                    Impact: {effect.impact_level}/5 · Likelihood: {effect.likelihood}/5 · Type: {effect.order_of_impact}
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                ) : (
-                  <div className="text-center p-4 border rounded-md">
-                    <p className="text-sm text-gray-500">No sustainability effects available for this project.</p>
-                  </div>
-                )}
-
-                {editTaskSelectedEffects.length > 0 && (
-                  <div className="mt-2">
-                    <p className="text-sm font-medium mb-1">Selected effects:</p>
-                    <div className="flex flex-wrap gap-2">
-                      {editTaskSelectedEffects.map((effectId) => {
-                        // Find the effect across all dimensions
-                        let effect;
-                        for (const dimension of sustainabilityEffects) {
-                          effect = dimension.effects.find(e => e._id === effectId);
-                          if (effect) break;
-                        }
-                        return (
-                          <Badge 
-                            key={effectId}
-                            variant="secondary"
-                            className="pl-2 bg-emerald-50 text-emerald-700 border-emerald-200"
-                          >
-                            {effect ? effect.description.substring(0, 30) + (effect.description.length > 30 ? '...' : '') : 'Unknown effect'}
-                            <button 
-                              className="ml-1 hover:bg-emerald-100 rounded-full p-1"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                toggleEditEffect(effectId);
-                              }}
-                            >
-                              ✕
-                            </button>
-                          </Badge>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Sustainability Points</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    max="10"
-                    value={editedTask?.sustainabilityPoints || editedTask?.sustainabilityWeight || 0}
-                    onChange={(e) => handleTaskChange("sustainabilityPoints", Number(e.target.value))}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Story Points</Label>
-                  <Input
-                    type="number"
-                    min="1"
-                    value={editedTask?.storyPoints || 1}
-                    onChange={(e) => handleTaskChange("storyPoints", Number(e.target.value))}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Definition of Done</Label>
-                <Textarea
-                  value={editedTask?.definitionOfDone || ""}
-                  onChange={(e) => handleTaskChange("definitionOfDone", e.target.value)}
-                  className="resize-none h-16"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Status</Label>
-                <Select
-                  value={editedTask?.status || "To Do"}
-                  onValueChange={(value) => handleTaskChange("status", value as "To Do" | "In Progress" | "Done")}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="To Do">To Do</SelectItem>
-                    <SelectItem value="In Progress">In Progress</SelectItem>
-                    <SelectItem value="Done">Done</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <DialogFooter className="flex justify-between">
-              <Button variant="destructive" onClick={handleDeleteTask}>
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete
-              </Button>
-              <div className="space-x-2">
-                <Button variant="outline" onClick={() => setIsTaskDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleSaveChanges} className="bg-gray-900 hover:bg-gray-800">
-                  Save Changes
-                </Button>
-              </div>
-            </DialogFooter>
+            {editedItem && (
+              <ItemForm
+                item={editedItem}
+                onChange={handleItemChange}
+                onSubmit={handleSaveChanges}
+                onCancel={() => setIsItemDialogOpen(false)}
+                users={allUsers}
+                sprints={allSprints}
+                sustainabilityEffects={sustainabilityEffects}
+                selectedEffects={editItemSelectedEffects}
+                onToggleEffect={toggleEditEffect}
+                projectId={selectedProjectId || ""}
+                submitLabel="Save Changes"
+                cancelLabel="Cancel"
+                showDelete={true}
+                onDelete={handleDeleteItem}
+                isEdit={true}
+                isSprintBoard={false} // Change to false to allow unassigning
+              />
+            )}
           </DialogContent>
         </Dialog>
 
-        {/* Add Task Dialog */}
-        <Dialog open={isAddTaskDialogOpen} onOpenChange={setIsAddTaskDialogOpen}>
+        {/* Add Item Dialog */}
+        <Dialog open={isAddItemDialogOpen} onOpenChange={setIsAddItemDialogOpen}>
           <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Add New Task</DialogTitle>
-              <DialogDescription>Create a new task for the current sprint</DialogDescription>
+              <DialogTitle>Add New Item</DialogTitle>
+              <DialogDescription>Create a new item for the current sprint</DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>PBI Title *</Label>
-                <Input
-                  value={newTask.title || ""}
-                  onChange={(e) => handleNewTaskChange("title", e.target.value)}
-                  placeholder="Enter task title"
-                  required
-                />
-              </div>
+            <ItemForm
+              item={newItem}
+              onChange={handleNewItemChange}
+              onSubmit={handleAddItem}
+              onCancel={() => setIsAddItemDialogOpen(false)}
+              users={allUsers}
+              sprints={allSprints}
+              sustainabilityEffects={sustainabilityEffects}
+              selectedEffects={selectedEffects}
+              onToggleEffect={toggleEffect}
+              projectId={selectedProjectId || ""}
+              submitLabel="Add Item"
+              isSprintBoard={true} // Set to true for sprint board
+            />
+          </DialogContent>
+        </Dialog>
 
-              <div className="space-y-2">
-                <Label>Description *</Label>
-                <Textarea
-                  value={newTask.description || ""}
-                  onChange={(e) => handleNewTaskChange("description", e.target.value)}
-                  placeholder="Describe the task"
-                  className="resize-none h-24"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Priority *</Label>
-                  <Select
-                    value={newTask.priority || "Medium"}
-                    onValueChange={(value) => handleNewTaskChange("priority", value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select priority" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Low">Low</SelectItem>
-                      <SelectItem value="Low+">Low+</SelectItem>
-                      <SelectItem value="Medium">Medium</SelectItem>
-                      <SelectItem value="Medium+">Medium+</SelectItem>
-                      <SelectItem value="High">High</SelectItem>
-                      <SelectItem value="High+">High+</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Assigned Person</Label>
-                  <Select
-                    value={newTask.assignedTo || ""}
-                    onValueChange={(value) => handleNewTaskChange("assignedTo", value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a person..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {allUsers.map((user) => (
-                        <SelectItem key={user.id} value={user.id}>
-                          {user.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="sustainable"
-                  checked={newTask.sustainable}
-                  onCheckedChange={(checked) => handleNewTaskChange("sustainable", checked)}
-                />
-                <Label htmlFor="sustainable">This task has sustainability impact</Label>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Sustainability Context</Label>
-                <Textarea
-                  value={newTask.sustainabilityContext || ""}
-                  onChange={(e) => handleNewTaskChange("sustainabilityContext", e.target.value)}
-                  placeholder="Describe sustainability impact"
-                  className="resize-none h-16"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>SuSAF Category</Label>
-                <Select value={selectedCategory} onValueChange={handleSusafCategoryChange}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SUSAF_CATEGORIES.map((category) => (
-                      <SelectItem key={category} value={category}>
-                        {category}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {selectedCategory && (
-                <div className="space-y-2">
-                  <Label>SuSAF Effects</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {availableEffects.map((effect) => (
-                      <div key={effect} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`effect-${effect}`}
-                          checked={(newTask.relatedSusafEffects || []).includes(effect)}
-                          onCheckedChange={() => handleSusafEffectsChange(effect)}
-                        />
-                        <Label htmlFor={`effect-${effect}`} className="text-sm">
-                          {effect}
-                        </Label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <Label>Sustainability Effects</Label>
-                {sustainabilityEffects.length > 0 ? (
-                  <ScrollArea className="h-[300px] border rounded-md p-4">
-                    <div className="space-y-6">
-                      {sustainabilityEffects.map((dimension) => (
-                        <div key={dimension._id} className="space-y-2">
-                          <h3 className="font-medium text-sm text-gray-900 bg-gray-100 p-2 rounded">
-                            {dimension.name}: {dimension.question}
-                          </h3>
-                          
-                          <div className="ml-2 space-y-3">
-                            {dimension.effects && dimension.effects.map((effect) => (
-                              <div key={effect._id} className="flex items-start space-x-2">
-                                <Checkbox
-                                  id={`effect-${effect._id}`}
-                                  checked={selectedEffects.includes(effect._id)}
-                                  onCheckedChange={() => toggleEffect(effect._id)}
-                                  className="mt-1"
-                                />
-                                <div>
-                                  <div className="flex items-center gap-2">
-                                    <Label htmlFor={`effect-${effect._id}`} className="font-medium text-sm">
-                                      {effect.description}
-                                    </Label>
-                                    <Badge 
-                                      variant="outline" 
-                                      className={effect.is_positive ? 
-                                        "bg-green-50 text-green-700 border-green-200" : 
-                                        "bg-amber-50 text-amber-700 border-amber-200"
-                                      }
-                                    >
-                                      {effect.is_positive ? "Positive" : "Negative"}
-                                    </Badge>
-                                  </div>
-                                  <div className="text-xs text-gray-500 mt-1 ml-1">
-                                    Impact: {effect.impact_level}/5 · Likelihood: {effect.likelihood}/5 · Type: {effect.order_of_impact}
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                ) : (
-                  <div className="text-center p-4 border rounded-md">
-                    <p className="text-sm text-gray-500">No sustainability effects available for this project.</p>
-                  </div>
-                )}
-
-                {selectedEffects.length > 0 && (
-                  <div className="mt-2">
-                    <p className="text-sm font-medium mb-1">Selected effects:</p>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedEffects.map((effectId) => {
-                        // Find the effect across all dimensions
-                        let effect;
-                        for (const dimension of sustainabilityEffects) {
-                          effect = dimension.effects.find(e => e._id === effectId);
-                          if (effect) break;
-                        }
-                        return (
-                          <Badge 
-                            key={effectId}
-                            variant="secondary"
-                            className="pl-2 bg-emerald-50 text-emerald-700 border-emerald-200"
-                          >
-                            {effect ? effect.description.substring(0, 30) + (effect.description.length > 30 ? '...' : '') : 'Unknown effect'}
-                            <button 
-                              className="ml-1 hover:bg-emerald-100 rounded-full p-1"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                toggleEffect(effectId);
-                              }}
-                            >
-                              ✕
-                            </button>
-                          </Badge>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Sustainability Points</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    max="10"
-                    value={newTask.sustainabilityPoints || 0}
-                    onChange={(e) => handleNewTaskChange("sustainabilityPoints", Number(e.target.value))}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Story Points *</Label>
-                  <Input
-                    type="number"
-                    min="1"
-                    value={newTask.storyPoints || 1}
-                    onChange={(e) => handleNewTaskChange("storyPoints", Number(e.target.value))}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Definition of Done</Label>
-                <Textarea
-                  value={newTask.definitionOfDone || ""}
-                  onChange={(e) => handleNewTaskChange("definitionOfDone", e.target.value)}
-                  placeholder="Define when this task is considered done"
-                  className="resize-none h-16"
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsAddTaskDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleAddTask} className="bg-gray-900 hover:bg-gray-800">
-                Add Task
-              </Button>
-            </DialogFooter>
+        {/* Unassigned Items Selector Dialog */}
+        <Dialog open={isUnassignedItemsDialogOpen} onOpenChange={setIsUnassignedItemsDialogOpen}>
+          <DialogContent className="sm:max-w-[700px] max-h-[90vh]">
+            <DialogHeader>
+              <DialogTitle>Add Items to New Sprint</DialogTitle>
+              <DialogDescription>
+                Select backlog items to add to your newly created sprint
+              </DialogDescription>
+            </DialogHeader>
+            {newlyCreatedSprintId && selectedProjectId && (
+              <UnassignedItemsSelector
+                sprintId={newlyCreatedSprintId}
+                projectId={selectedProjectId}
+                onClose={() => setIsUnassignedItemsDialogOpen(false)}
+                onItemsAdded={handleItemsAddedToSprint}
+              />
+            )}
           </DialogContent>
         </Dialog>
       </div>

@@ -1,12 +1,12 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
-import { Layers, Plus } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Layers, Plus, ArrowUpDown, ArrowUp, ArrowDown, Edit } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useBacklogData, addBacklogItem, getAllSprints, type BacklogItem } from "@/lib/axiosInstance"
+import { useBacklogData, addBacklogItem, getAllSprints, getSustainabilityEffects, updateItem, deleteItem, type Item } from "@/lib/axiosInstance"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/components/auth-provider"
 import { useSprintContext } from "@/components/sprint-context"
@@ -15,15 +15,20 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { SUSAF_CATEGORIES, SUSAF_EFFECTS } from "@/lib/constants"
 import { useProjectContext } from "@/components/project-context"
+import { ItemForm } from "@/components/item-form"
+import { Badge } from "@/components/ui/badge"
+
+// Define the order for basic priority values
+const PRIORITY_ORDER = {
+  "High": 0,
+  "Medium": 1, 
+  "Low": 2
+};
 
 export default function Backlog() {
   const { data: backlogItems, loading, error } = useBacklogData()
@@ -33,9 +38,19 @@ export default function Backlog() {
   const { selectedSprintId, setSelectedSprintId } = useSprintContext()
   const { selectedProjectId } = useProjectContext();
   
-  // Get all sprints for the dropdown
-  // const allSprints = useMemo(() => getAllSprints(), [])
   const [allSprints, setAllSprints] = useState<any[]>([]);
+  const [sustainabilityEffects, setSustainabilityEffects] = useState<any[]>([])
+  const [selectedEffects, setSelectedEffects] = useState<string[]>([])
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ 
+    key: 'priority', 
+    direction: 'asc' 
+  });
+
+  // State for edit functionality
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<Item | null>(null);
+  const [editItemSelectedEffects, setEditItemSelectedEffects] = useState<string[]>([]);
+
   useEffect(() => {
     const fetchSprints = async () => {
       try {
@@ -56,61 +71,224 @@ export default function Backlog() {
     }
   }, [allSprints, selectedSprintId]);
 
-  const [filters, setFilters] = useState({
-    sustainability: "All",
-    priority: "All",
-    susafCategory: "All",
-    status: "All",
-    search: "",
-  })
-
-  // State for SuSAF effects selection
-  const [selectedCategory, setSelectedCategory] = useState<string>("")
-  const [availableEffects, setAvailableEffects] = useState<string[]>([])
-
-  const [newItem, setNewItem] = useState<Partial<BacklogItem>>({
-    title: "",
-    description: "",
-    priority: "High",
-    sustainable: false,
-    storyPoints: 3,
-    sustainabilityScore: 0,
-    status: "To Do",
-    susafCategory: undefined,
-    sustainabilityPoints: 0,
-    relatedSusafEffects: [],
-    definitionOfDone: "",
-    tags: [],
-    sprintId: "",
-  })
-
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-  const [tagsInput, setTagsInput] = useState("")
-
-  // Update available effects when category changes
   useEffect(() => {
-    if (selectedCategory && selectedCategory in SUSAF_EFFECTS) {
-      setAvailableEffects(SUSAF_EFFECTS[selectedCategory as keyof typeof SUSAF_EFFECTS])
-    } else {
-      setAvailableEffects([])
-    }
-  }, [selectedCategory])
+    if (!selectedProjectId) return;
 
-  // Update newItem.sprintId when selected sprint changes
-  useEffect(() => {
-    if (selectedSprintId) {
-      setNewItem((prev) => ({
-        ...prev,
-        sprintId: selectedSprintId,
-      }))
-    }
-  }, [selectedSprintId])
+    const fetchEffects = async () => {
+      try {
+        const response = await getSustainabilityEffects(selectedProjectId);
+        
+        if (response && response.success && response.data) {
+          setSustainabilityEffects(response.data);
+        } else {
+          setSustainabilityEffects([]);
+          console.error('Unexpected response format from sustainability effects API:', response);
+        }
+      } catch (error) {
+        console.error('Failed to fetch sustainability effects:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load sustainability effects.",
+          variant: "destructive",
+        });
+      }
+    };
+
+    fetchEffects();
+  }, [selectedProjectId, toast]);
 
   useEffect(() => {
     if (!authLoading && !user) {
       router.push("/login")
     }
   }, [authLoading, user, router])
+
+  const [filters, setFilters] = useState({
+    sustainability: "All",
+    priority: "All",
+    status: "All",
+    search: "",
+    sprintAssignment: "Unassigned" // New filter with "Unassigned" as default
+  })
+
+  const [newItem, setNewItem] = useState<Partial<Item>>({
+    title: "",
+    description: "",
+    priority: "High",
+    sustainable: false,
+    storyPoints: 1,
+    status: "To Do",
+    sustainabilityPoints: 0,
+    relatedSusafEffects: [],
+    definitionOfDone: "",
+    sprintId: "",
+  })
+
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+
+  const handleFilterChange = (key: keyof typeof filters, value: string) => {
+    setFilters((prev) => ({ ...prev, [key]: value }))
+  }
+
+  const handleNewItemChange = (key: keyof Item, value: any) => {
+    setNewItem((prev) => ({ ...prev, [key]: value }))
+  }
+
+  const toggleEffect = (effectId: string) => {
+    setSelectedEffects(prev => 
+      prev.includes(effectId)
+        ? prev.filter(id => id !== effectId)
+        : [...prev, effectId]
+    );
+  };
+
+  const toggleEditEffect = (effectId: string) => {
+    setEditItemSelectedEffects(prev => 
+      prev.includes(effectId)
+        ? prev.filter(id => id !== effectId)
+        : [...prev, effectId]
+    )
+    
+    // Also update the editingItem
+    if (editingItem) {
+      const updatedEffects = editItemSelectedEffects.includes(effectId)
+        ? editItemSelectedEffects.filter(id => id !== effectId)
+        : [...editItemSelectedEffects, effectId]
+        
+      setEditingItem({
+        ...editingItem,
+        relatedSusafEffects: updatedEffects,
+      })
+    }
+  }
+
+  const handleAddItem = async () => {
+    try {
+      if (!selectedProjectId) {
+        toast({
+          title: "Error",
+          description: "No project selected. Please select a project first.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Let the sustainable flag be explicitly set by the checkbox only
+      const itemToAdd = {
+        ...newItem,
+        sprintId: newItem.sprintId || "", // Keep empty string if not assigned
+        projectId: selectedProjectId,
+        relatedSusafEffects: selectedEffects,
+      } as Omit<Item, "id">;
+
+      console.log("Creating backlog item with data:", itemToAdd);
+      await addBacklogItem(itemToAdd);
+      
+      setIsAddDialogOpen(false);
+      toast({
+        title: "Backlog item added",
+        description: "Your new backlog item has been added successfully.",
+      });
+
+      // Reset form
+      setNewItem({
+        title: "",
+        description: "",
+        priority: "High",
+        sustainable: false,
+        storyPoints: 3,
+        status: "To Do",
+        sustainabilityPoints: 0,
+        relatedSusafEffects: [],
+        definitionOfDone: "",
+        sprintId: "",
+      });
+      setSelectedEffects([]);
+      
+      // Refresh the page to show the new item
+      window.location.reload();
+    } catch (error) {
+      console.error("Error adding backlog item:", error);
+      toast({
+        title: "Error",
+        description: "Failed to add backlog item. Please check the console for details.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleEditItem = async () => {
+    if (!editingItem) return;
+
+    try {
+      await updateItem(editingItem.id, {
+        ...editingItem,
+        relatedSusafEffects: editItemSelectedEffects
+      });
+      
+      setIsEditDialogOpen(false);
+      toast({
+        title: "Item updated",
+        description: "The backlog item has been updated successfully.",
+      });
+      
+      // Refresh the page to show the updated item
+      window.location.reload();
+    } catch (error) {
+      console.error("Error updating backlog item:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update backlog item.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteItem = async () => {
+    if (!editingItem) return;
+
+    try {
+      await deleteItem(editingItem.id);
+      
+      setIsEditDialogOpen(false);
+      toast({
+        title: "Item deleted",
+        description: "The backlog item has been deleted successfully.",
+      });
+      
+      // Refresh the page to show the updated list
+      window.location.reload();
+    } catch (error) {
+      console.error("Error deleting backlog item:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete backlog item.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleEditItemChange = (key: keyof Item, value: any) => {
+    if (!editingItem) return;
+    setEditingItem({ ...editingItem, [key]: value });
+  };
+
+  const openItemForEdit = (item: Item) => {
+    setEditingItem(item);
+    setEditItemSelectedEffects(item.relatedSusafEffects || []);
+    setIsEditDialogOpen(true);
+  };
+
+  // Function to handle sorting
+  const requestSort = (key: string) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    
+    setSortConfig({ key, direction });
+  };
 
   if (loading || authLoading || !user) {
     return null // Will redirect to login if not authenticated
@@ -120,82 +298,13 @@ export default function Backlog() {
     return <div className="flex justify-center items-center h-64 text-red-500">Error loading backlog data</div>
   }
 
-  const handleFilterChange = (key: keyof typeof filters, value: string) => {
-    setFilters((prev) => ({ ...prev, [key]: value }))
-  }
-
-  const handleNewItemChange = (key: keyof BacklogItem, value: any) => {
-    setNewItem((prev) => ({ ...prev, [key]: value }))
-  }
-
-  const handleAddItem = async () => {
-    // Process tags from comma-separated string
-    const tags = tagsInput
-      .split(",")
-      .map((tag) => tag.trim())
-      .filter((tag) => tag)
-
-    const itemToAdd = {
-      ...newItem,
-      tags,
-      sprintId: selectedSprintId,
-    } as Omit<BacklogItem, "id">
-
-    await addBacklogItem(itemToAdd)
-    setIsAddDialogOpen(false)
-    toast({
-      title: "Backlog item added",
-      description: "Your new backlog item has been added successfully.",
-    })
-
-    // Reset form
-    setNewItem({
-      title: "",
-      description: "",
-      priority: "High",
-      sustainable: false,
-      storyPoints: 3,
-      sustainabilityScore: 0,
-      status: "To Do",
-      susafCategory: undefined,
-      sustainabilityPoints: 0,
-      relatedSusafEffects: [],
-      definitionOfDone: "",
-      tags: [],
-      sprintId: selectedSprintId,
-    })
-    setTagsInput("")
-    setSelectedCategory("")
-  }
-
-  const handleSprintChange = (sprintId: string) => {
-    setSelectedSprintId(sprintId)
-  }
-
-  const handleSusafCategoryChange = (category: string) => {
-    setSelectedCategory(category)
-    handleNewItemChange("susafCategory", category)
-  }
-
-  const handleSusafEffectsChange = (effect: string) => {
-    const currentEffects = newItem.relatedSusafEffects || []
-    if (currentEffects.includes(effect)) {
-      // Remove the effect if already selected
-      handleNewItemChange(
-        "relatedSusafEffects",
-        currentEffects.filter((e) => e !== effect),
-      )
-    } else {
-      // Add the effect
-      handleNewItemChange("relatedSusafEffects", [...currentEffects, effect])
-    }
-  }
-
   // Filter backlog items based on selected sprint and other filters
   const filteredItems = backlogItems.filter((item) => {
-    // Filter by sprint
-    if (selectedSprintId && selectedSprintId !== "all") {
-      if (item.sprintId !== selectedSprintId) return false
+    // Filter by sprint assignment
+    if (filters.sprintAssignment === "Unassigned") {
+      if (item.sprintId) return false;  // Skip items that have a sprintId
+    } else if (filters.sprintAssignment === "Current") {
+      if (item.sprintId !== selectedSprintId) return false;  // Skip items not in current sprint
     }
 
     // Apply other filters
@@ -205,31 +314,80 @@ export default function Backlog() {
     }
 
     if (filters.priority !== "All") {
-      // Handle the "+" variants
-      if (filters.priority.endsWith("+")) {
-        const basePriority = filters.priority.slice(0, -1)
-        if (item.priority !== filters.priority && !(item.priority === basePriority && item.sustainable)) {
-          return false
-        }
-      } else {
-        // For non-"+" priorities, match exactly but also include items with "+" if they match the base priority
-        const itemBasePriority = item.priority.endsWith("+") ? item.priority.slice(0, -1) : item.priority
-        if (itemBasePriority !== filters.priority) return false
-      }
+      if (item.priority !== filters.priority) return false
     }
-
-    if (filters.susafCategory !== "All" && item.susafCategory !== filters.susafCategory) return false
 
     if (filters.status !== "All" && item.status !== filters.status) return false
 
     if (filters.search && !item.title.toLowerCase().includes(filters.search.toLowerCase())) return false
 
     return true
-  })
+  });
+
+  // Sort filtered items
+  const sortedItems = [...filteredItems].sort((a, b) => {
+    if (sortConfig.key === 'priority') {
+      // Get the base priority value without the '+'
+      const priorityA = PRIORITY_ORDER[a.priority as keyof typeof PRIORITY_ORDER];
+      const priorityB = PRIORITY_ORDER[b.priority as keyof typeof PRIORITY_ORDER];
+      
+      if (priorityA === priorityB) {
+        // When priorities are equal, sort sustainable items first
+        return sortConfig.direction === 'asc'
+          ? (b.sustainable ? 1 : 0) - (a.sustainable ? 1 : 0)
+          : (a.sustainable ? 1 : 0) - (b.sustainable ? 1 : 0);
+      }
+      
+      return sortConfig.direction === 'asc' 
+        ? priorityA - priorityB 
+        : priorityB - priorityA;
+    }
+    
+    if (sortConfig.key === 'sustainable') {
+      const boolA = a.sustainable ? 1 : 0;
+      const boolB = b.sustainable ? 1 : 0;
+      
+      return sortConfig.direction === 'asc'
+        ? boolA - boolB
+        : boolB - boolA;
+    }
+    
+    if (sortConfig.key === 'storyPoints' || sortConfig.key === 'sustainabilityPoints') {
+      const valA = a[sortConfig.key] || 0;
+      const valB = b[sortConfig.key] || 0;
+      
+      return sortConfig.direction === 'asc'
+        ? valA - valB
+        : valB - valA;
+    }
+    
+    // Default string comparison for title and status
+    const valA = a[sortConfig.key as keyof typeof a] as string;
+    const valB = b[sortConfig.key as keyof typeof a] as string;
+    
+    if (sortConfig.direction === 'asc') {
+      return valA > valB ? 1 : -1;
+    } else {
+      return valA < valB ? 1 : -1;
+    }
+  });
 
   const uniqueCategories = Array.from(new Set(backlogItems.map((item) => item.susafCategory))).filter(
     Boolean,
   ) as string[]
+
+  // Helper to show sort indicator
+  const getSortDirection = (key: string) => {
+    if (sortConfig.key === key) {
+      return sortConfig.direction === 'asc' ? <ArrowUp className="h-3 w-3 ml-1" /> : <ArrowDown className="h-3 w-3 ml-1" />;
+    }
+    return <ArrowUpDown className="h-3 w-3 ml-1 opacity-30" />;
+  };
+
+  // Helper to get the display priority (with + for sustainable items)
+  const getDisplayPriority = (item: Item) => {
+    return item.sustainable ? `${item.priority}+` : item.priority;
+  };
 
   return (
     <div className="container mx-auto py-6">
@@ -240,12 +398,10 @@ export default function Backlog() {
         </div>
         <div className="flex items-center gap-4">
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-gray-900 hover:bg-gray-800">
-                <Plus className="h-4 w-4 mr-2" />
-                Add New PBI
-              </Button>
-            </DialogTrigger>
+            <Button className="bg-gray-900 hover:bg-gray-800" onClick={() => setIsAddDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add New PBI
+            </Button>
             <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
@@ -254,189 +410,91 @@ export default function Backlog() {
                 </DialogTitle>
                 <DialogDescription>Create a new product backlog item with sustainability metrics</DialogDescription>
               </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="title">PBI Title *</Label>
-                  <Input
-                    id="title"
-                    value={newItem.title || ""}
-                    onChange={(e) => handleNewItemChange("title", e.target.value)}
-                    placeholder="Enter backlog item title"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="description">Description *</Label>
-                  <Textarea
-                    id="description"
-                    value={newItem.description || ""}
-                    onChange={(e) => handleNewItemChange("description", e.target.value)}
-                    placeholder="Describe the backlog item"
-                    className="min-h-[100px]"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="priority">Priority *</Label>
-                    <Select value={newItem.priority} onValueChange={(value) => handleNewItemChange("priority", value)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select priority" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Low">Low</SelectItem>
-                        <SelectItem value="Low+">Low+</SelectItem>
-                        <SelectItem value="Medium">Medium</SelectItem>
-                        <SelectItem value="Medium+">Medium+</SelectItem>
-                        <SelectItem value="High">High</SelectItem>
-                        <SelectItem value="High+">High+</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="sprint-assignment">Sprint Assignment</Label>
-                    <Select
-                      value={newItem.sprintId || ""}
-                      onValueChange={(value) => handleNewItemChange("sprintId", value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select sprint" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {allSprints.map((s) => (
-                          <SelectItem key={s.id} value={s.id}>
-                            {s.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="assigned-person">Assigned Person</Label>
-                  <Select
-                    value={newItem.assignedTo || ""}
-                    onValueChange={(value) => handleNewItemChange("assignedTo", value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a person..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="user-1">Alex Johnson</SelectItem>
-                      <SelectItem value="user-2">Sam Smith</SelectItem>
-                      <SelectItem value="user-3">Jordan Lee</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="sustainable"
-                    checked={newItem.sustainable}
-                    onCheckedChange={(checked) => handleNewItemChange("sustainable", checked)}
-                  />
-                  <Label htmlFor="sustainable">This item has sustainability impact</Label>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>SuSAF Category</Label>
-                  <Select value={selectedCategory} onValueChange={handleSusafCategoryChange}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {SUSAF_CATEGORIES.map((category) => (
-                        <SelectItem key={category} value={category}>
-                          {category}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {selectedCategory && (
-                  <div className="space-y-2">
-                    <Label>SuSAF Effects</Label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {availableEffects.map((effect) => (
-                        <div key={effect} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`effect-${effect}`}
-                            checked={(newItem.relatedSusafEffects || []).includes(effect)}
-                            onCheckedChange={() => handleSusafEffectsChange(effect)}
-                          />
-                          <Label htmlFor={`effect-${effect}`} className="text-sm">
-                            {effect}
-                          </Label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="sustainability-points">Sustainability Points</Label>
-                    <Input
-                      id="sustainability-points"
-                      type="number"
-                      min="0"
-                      max="10"
-                      value={newItem.sustainabilityPoints || 0}
-                      onChange={(e) => handleNewItemChange("sustainabilityPoints", Number(e.target.value))}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="story-points">Estimated Effort (Story Points) *</Label>
-                    <Input
-                      id="story-points"
-                      type="number"
-                      min="1"
-                      value={newItem.storyPoints || 1}
-                      onChange={(e) => handleNewItemChange("storyPoints", Number(e.target.value))}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="definition-of-done">Definition of Done *</Label>
-                  <Textarea
-                    id="definition-of-done"
-                    value={newItem.definitionOfDone || ""}
-                    onChange={(e) => handleNewItemChange("definitionOfDone", e.target.value)}
-                    placeholder="Define when this item is considered done"
-                    className="min-h-[100px]"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="tags">Tags</Label>
-                  <Input
-                    id="tags"
-                    placeholder="Separate tags with commas"
-                    value={tagsInput}
-                    onChange={(e) => setTagsInput(e.target.value)}
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleAddItem} className="bg-gray-900 hover:bg-gray-800">
-                  Save PBI
-                </Button>
-              </DialogFooter>
+              <ItemForm
+                item={newItem}
+                onChange={handleNewItemChange}
+                onSubmit={handleAddItem}
+                onCancel={() => setIsAddDialogOpen(false)}
+                users={[  // Replace this with your actual users data
+                  { id: "user-1", name: "Alex Johnson", email: "alex@example.com" },
+                  { id: "user-2", name: "Sam Smith", email: "sam@example.com" },
+                  { id: "user-3", name: "Jordan Lee", email: "jordan@example.com" }
+                ]}
+                sprints={allSprints}
+                sustainabilityEffects={sustainabilityEffects}
+                selectedEffects={selectedEffects}
+                onToggleEffect={toggleEffect}
+                projectId={selectedProjectId || ""}
+                submitLabel="Save PBI"
+                isSprintBoard={false}
+              />
             </DialogContent>
           </Dialog>
         </div>
       </div>
 
+      {/* Edit Item Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Backlog Item</DialogTitle>
+            <DialogDescription>Update the details of this backlog item</DialogDescription>
+          </DialogHeader>
+          {editingItem && (
+            <ItemForm
+              item={editingItem}
+              onChange={handleEditItemChange}
+              onSubmit={handleEditItem}
+              onCancel={() => setIsEditDialogOpen(false)}
+              users={[  // Replace with actual user data
+                { id: "user-1", name: "Alex Johnson", email: "alex@example.com" },
+                { id: "user-2", name: "Sam Smith", email: "sam@example.com" },
+                { id: "user-3", name: "Jordan Lee", email: "jordan@example.com" }
+              ]}
+              sprints={allSprints}
+              sustainabilityEffects={sustainabilityEffects}
+              selectedEffects={editItemSelectedEffects}
+              onToggleEffect={toggleEditEffect}
+              projectId={selectedProjectId || ""}
+              submitLabel="Update PBI"
+              cancelLabel="Cancel"
+              showDelete={true}
+              onDelete={handleDeleteItem}
+              isEdit={true}
+              isSprintBoard={false}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
       <div className="bg-white border rounded-md">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 p-4">
+          <div>
+            <Label className="mb-2 block">Search</Label>
+            <Input 
+              placeholder="Search by title" 
+              value={filters.search}
+              onChange={(e) => handleFilterChange("search", e.target.value)}
+            />
+          </div>
+
+          <div>
+            <Label className="mb-2 block">Sprint Assignment</Label>
+            <Select
+              value={filters.sprintAssignment}
+              onValueChange={(value) => handleFilterChange("sprintAssignment", value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Filter by assignment" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All">All Items</SelectItem>
+                <SelectItem value="Unassigned">Unassigned Items</SelectItem>
+                <SelectItem value="Current">Current Sprint</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           <div>
             <Label className="mb-2 block">Sustainability</Label>
             <Select
@@ -463,28 +521,8 @@ export default function Backlog() {
               <SelectContent>
                 <SelectItem value="All">All</SelectItem>
                 <SelectItem value="Low">Low</SelectItem>
-                <SelectItem value="Low+">Low+</SelectItem>
                 <SelectItem value="Medium">Medium</SelectItem>
-                <SelectItem value="Medium+">Medium+</SelectItem>
                 <SelectItem value="High">High</SelectItem>
-                <SelectItem value="High+">High+</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label className="mb-2 block">SuSAF Category</Label>
-            <Select value={filters.susafCategory} onValueChange={(value) => handleFilterChange("susafCategory", value)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Filter by category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="All">All Categories</SelectItem>
-                {uniqueCategories.map((category) => (
-                  <SelectItem key={category} value={category}>
-                    {category}
-                  </SelectItem>
-                ))}
               </SelectContent>
             </Select>
           </div>
@@ -509,31 +547,84 @@ export default function Backlog() {
           <table className="w-full">
             <thead>
               <tr className="border-t border-b text-left text-xs uppercase tracking-wider text-gray-500">
-                <th className="px-6 py-3">Title</th>
-                <th className="px-6 py-3">Priority</th>
-                <th className="px-6 py-3">Sustainable</th>
-                <th className="px-6 py-3">Story Points</th>
-                <th className="px-6 py-3">Sustainability Score</th>
-                <th className="px-6 py-3">Status</th>
+                <th className="px-6 py-3">
+                  <button 
+                    onClick={() => requestSort('title')}
+                    className="flex items-center font-semibold hover:text-gray-700 focus:outline-none"
+                  >
+                    Title {getSortDirection('title')}
+                  </button>
+                </th>
+                <th className="px-6 py-3">
+                  <button 
+                    onClick={() => requestSort('priority')}
+                    className="flex items-center font-semibold hover:text-gray-700 focus:outline-none"
+                  >
+                    Priority {getSortDirection('priority')}
+                  </button>
+                </th>
+                <th className="px-6 py-3">
+                  <button 
+                    onClick={() => requestSort('sustainable')}
+                    className="flex items-center font-semibold hover:text-gray-700 focus:outline-none"
+                  >
+                    Sustainable {getSortDirection('sustainable')}
+                  </button>
+                </th>
+                <th className="px-6 py-3">
+                  <button 
+                    onClick={() => requestSort('storyPoints')}
+                    className="flex items-center font-semibold hover:text-gray-700 focus:outline-none"
+                  >
+                    Story Points {getSortDirection('storyPoints')}
+                  </button>
+                </th>
+                <th className="px-6 py-3">
+                  <button 
+                    onClick={() => requestSort('sustainabilityPoints')}
+                    className="flex items-center font-semibold hover:text-gray-700 focus:outline-none"
+                  >
+                    Sustainability Points {getSortDirection('sustainabilityPoints')}
+                  </button>
+                </th>
+                <th className="px-6 py-3">
+                  <button 
+                    onClick={() => requestSort('status')}
+                    className="flex items-center font-semibold hover:text-gray-700 focus:outline-none"
+                  >
+                    Status {getSortDirection('status')}
+                  </button>
+                </th>
+                <th className="px-6 py-3">
+                  <span className="font-semibold">Actions</span>
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y">
-              {filteredItems.length === 0 ? (
+              {sortedItems.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
                     No backlog items match your filters
                   </td>
                 </tr>
               ) : (
-                filteredItems.map((item) => (
+                sortedItems.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 font-medium">{item.title}</td>
-                    <td className="px-6 py-4">{item.priority}</td>
+                    <td className="px-6 py-4">
+                      <Badge className={
+                        item.priority === 'High' ? 'bg-red-100 text-red-800' :
+                        item.priority === 'Medium' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-blue-100 text-blue-800'
+                      }>
+                        {getDisplayPriority(item)}
+                      </Badge>
+                    </td>
                     <td className="px-6 py-4">
                       <Checkbox checked={item.sustainable} disabled />
                     </td>
                     <td className="px-6 py-4">{item.storyPoints}</td>
-                    <td className="px-6 py-4">{item.sustainabilityScore}</td>
+                    <td className="px-6 py-4">{item.sustainabilityPoints}</td>
                     <td className="px-6 py-4">
                       <span
                         className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium
@@ -547,6 +638,17 @@ export default function Backlog() {
                       >
                         {item.status}
                       </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <Button 
+                        size="sm" 
+                        variant="ghost" 
+                        onClick={() => openItemForEdit(item)}
+                        className="flex items-center space-x-1"
+                      >
+                        <Edit className="h-4 w-4" />
+                        <span>Edit</span>
+                      </Button>
                     </td>
                   </tr>
                 ))

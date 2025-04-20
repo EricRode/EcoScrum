@@ -26,29 +26,6 @@ export interface Project {
   sprints: string[] // Sprint IDs
 }
 
-export interface Task {
-  id: string
-  title: string
-  description: string
-  priority: (typeof PRIORITY_LEVELS)[number]
-  sustainabilityContext: string
-  status: (typeof TASK_STATUSES)[number]
-  comments: number
-  subtasks: number
-  sustainabilityWeight: number
-  assignedTo?: string
-  sprintId: string
-  storyPoints: number
-  sustainabilityPoints: number
-  relatedSusafEffects?: string[]
-  definitionOfDone?: string
-  tags?: string[]
-  sustainable: boolean
-  susafCategory?: SusafCategory
-  order: number
-  projectId: string
-}
-
 export interface Sprint {
   id: string
   name: string
@@ -69,24 +46,28 @@ export interface Sprint {
   }
 }
 
-export interface BacklogItem {
+export interface Item {
   id: string
   title: string
   description: string
   priority: (typeof PRIORITY_LEVELS)[number]
+  status: (typeof TASK_STATUSES)[number]
+  projectId: string
+  
+  // Common optional properties
   sustainable: boolean
   storyPoints: number
-  sustainabilityScore: number
-  status: (typeof TASK_STATUSES)[number]
-  susafCategory?: SusafCategory
+  sustainabilityPoints?: number
   assignedTo?: string
   sprintId?: string
-  projectId: string
-  sustainabilityPoints?: number
   relatedSusafEffects?: string[]
   definitionOfDone?: string
   tags?: string[]
-}
+  sustainabilityContext?: string
+  comments?: number
+  subtasks?: number
+  order?: number
+  }
 
 // Mock users
 const mockUsers: User[] = [
@@ -315,7 +296,7 @@ const mockSprints: Sprint[] = [
 ]
 
 // Update tasks with projectId
-const mockPastTasks: Task[] = [
+const mockPastTasks: Item[] = [
   // Sprint 22 tasks
   {
     id: "task-past-1",
@@ -326,13 +307,11 @@ const mockPastTasks: Task[] = [
     status: "Done",
     comments: 5,
     subtasks: 3,
-    sustainabilityWeight: 7,
     assignedTo: "user-1",
     sprintId: "sprint-22",
     storyPoints: 8,
     sustainabilityPoints: 7,
     sustainable: true,
-    susafCategory: "Technical",
     order: 0,
     projectId: "project-1",
   },
@@ -345,13 +324,11 @@ const mockPastTasks: Task[] = [
     status: "Done",
     comments: 2,
     subtasks: 1,
-    sustainabilityWeight: 5,
     assignedTo: "user-2",
     sprintId: "sprint-22",
     storyPoints: 3,
     sustainabilityPoints: 5,
     sustainable: true,
-    susafCategory: "Technical",
     order: 1,
     projectId: "project-1",
   },
@@ -364,7 +341,6 @@ const mockPastTasks: Task[] = [
     status: "Done",
     comments: 3,
     subtasks: 0,
-    sustainabilityWeight: 2,
     assignedTo: "user-3",
     sprintId: "sprint-22",
     storyPoints: 2,
@@ -384,13 +360,11 @@ const mockPastTasks: Task[] = [
     status: "Done",
     comments: 4,
     subtasks: 2,
-    sustainabilityWeight: 8,
     assignedTo: "user-1",
     sprintId: "sprint-23",
     storyPoints: 5,
     sustainabilityPoints: 8,
     sustainable: true,
-    susafCategory: "Technical",
     order: 0,
     projectId: "project-1",
   },
@@ -403,13 +377,11 @@ const mockPastTasks: Task[] = [
     status: "Done",
     comments: 3,
     subtasks: 1,
-    sustainabilityWeight: 7,
     assignedTo: "user-2",
     sprintId: "sprint-23",
     storyPoints: 8,
     sustainabilityPoints: 7,
     sustainable: true,
-    susafCategory: "Technical",
     order: 1,
     projectId: "project-1",
   },
@@ -422,7 +394,6 @@ const mockPastTasks: Task[] = [
     status: "Done",
     comments: 2,
     subtasks: 0,
-    sustainabilityWeight: 2,
     assignedTo: "user-3",
     sprintId: "sprint-23",
     storyPoints: 3,
@@ -442,13 +413,11 @@ const mockPastTasks: Task[] = [
     status: "Done",
     comments: 4,
     subtasks: 2,
-    sustainabilityWeight: 6,
     assignedTo: "user-1",
     sprintId: "sprint-21",
     storyPoints: 5,
     sustainabilityPoints: 6,
     sustainable: true,
-    susafCategory: "Technical",
     order: 0,
     projectId: "project-1",
   },
@@ -461,13 +430,11 @@ const mockPastTasks: Task[] = [
     status: "Done",
     comments: 2,
     subtasks: 1,
-    sustainabilityWeight: 5,
     assignedTo: "user-2",
     sprintId: "sprint-21",
     storyPoints: 3,
     sustainabilityPoints: 5,
     sustainable: true,
-    susafCategory: "Technical",
     order: 1,
     projectId: "project-1",
   },
@@ -480,13 +447,11 @@ const mockPastTasks: Task[] = [
     status: "Done",
     comments: 1,
     subtasks: 0,
-    sustainabilityWeight: 3,
     assignedTo: "user-3",
     sprintId: "sprint-21",
     storyPoints: 2,
     sustainabilityPoints: 3,
     sustainable: true,
-    susafCategory: "Communication",
     order: 2,
     projectId: "project-1",
   },
@@ -501,13 +466,11 @@ const mockPastTasks: Task[] = [
     status: "Done",
     comments: 5,
     subtasks: 3,
-    sustainabilityWeight: 6,
     assignedTo: "user-1",
     sprintId: "sprint-20",
     storyPoints: 8,
     sustainabilityPoints: 6,
     sustainable: true,
-    susafCategory: "Technical",
     order: 0,
     projectId: "project-1",
   },
@@ -520,13 +483,11 @@ const mockPastTasks: Task[] = [
     status: "Done",
     comments: 3,
     subtasks: 2,
-    sustainabilityWeight: 5,
     assignedTo: "user-2",
     sprintId: "sprint-20",
     storyPoints: 5,
     sustainabilityPoints: 5,
     sustainable: true,
-    susafCategory: "Technical",
     order: 1,
     projectId: "project-1",
   },
@@ -539,20 +500,18 @@ const mockPastTasks: Task[] = [
     status: "Done",
     comments: 2,
     subtasks: 0,
-    sustainabilityWeight: 3,
     assignedTo: "user-3",
     sprintId: "sprint-20",
     storyPoints: 2,
     sustainabilityPoints: 3,
     sustainable: true,
-    susafCategory: "Communication",
     order: 2,
     projectId: "project-1",
   },
 ]
 
 // Update mockTasks with projectId
-const mockTasks: Task[] = [
+const mockTasks: Item[] = [
   {
     id: "task-1",
     title: "Implement API response caching to reduce repeated external requests",
@@ -562,14 +521,12 @@ const mockTasks: Task[] = [
     status: "To Do",
     comments: 3,
     subtasks: 2,
-    sustainabilityWeight: 8,
     assignedTo: "user-1",
     sprintId: "sprint-24",
     storyPoints: 5,
     sustainabilityPoints: 8,
     definitionOfDone: "Cache implementation reduces API calls by at least 30% in test environment",
     sustainable: true,
-    susafCategory: "Technical",
     relatedSusafEffects: ["Resource Optimization", "Energy Efficiency"],
     order: 0,
     projectId: "project-1",
@@ -583,14 +540,12 @@ const mockTasks: Task[] = [
     status: "In Progress",
     comments: 2,
     subtasks: 3,
-    sustainabilityWeight: 6,
     assignedTo: "user-2",
     sprintId: "sprint-24",
     storyPoints: 8,
     sustainabilityPoints: 6,
     definitionOfDone: "All user input forms implement debounce with 300ms delay",
     sustainable: true,
-    susafCategory: "Technical",
     relatedSusafEffects: ["Resource Optimization", "Performance Improvement"],
     order: 0,
     projectId: "project-1",
@@ -604,14 +559,12 @@ const mockTasks: Task[] = [
     status: "Done",
     comments: 1,
     subtasks: 0,
-    sustainabilityWeight: 5,
     assignedTo: "user-3",
     sprintId: "sprint-24",
     storyPoints: 3,
     sustainabilityPoints: 5,
     definitionOfDone: "All test environments use mock data instead of live API calls",
     sustainable: true,
-    susafCategory: "Technical",
     relatedSusafEffects: ["Resource Optimization", "Energy Efficiency"],
     order: 0,
     projectId: "project-1",
@@ -626,14 +579,12 @@ const mockTasks: Task[] = [
     status: "To Do",
     comments: 0,
     subtasks: 2,
-    sustainabilityWeight: 3,
     assignedTo: "user-1",
     sprintId: "sprint-24",
     storyPoints: 3,
     sustainabilityPoints: 0,
     definitionOfDone: "UI displays correctly in French and Spanish with all translations reviewed",
     sustainable: false,
-    susafCategory: "Human",
     relatedSusafEffects: ["Accessibility", "Inclusivity"],
     order: 1,
     projectId: "project-1",
@@ -647,14 +598,12 @@ const mockTasks: Task[] = [
     status: "To Do",
     comments: 5,
     subtasks: 1,
-    sustainabilityWeight: 5,
     assignedTo: "user-2",
     sprintId: "sprint-24",
     storyPoints: 5,
     sustainabilityPoints: 9,
     definitionOfDone: "Audit completed and at least 5 unnecessary API calls removed",
     sustainable: true,
-    susafCategory: "Environmental",
     relatedSusafEffects: ["Energy Consumption", "Resource Conservation"],
     order: 2,
     projectId: "project-1",
@@ -669,14 +618,12 @@ const mockTasks: Task[] = [
     status: "To Do",
     comments: 2,
     subtasks: 0,
-    sustainabilityWeight: 2,
     assignedTo: "user-3",
     sprintId: "sprint-24",
     storyPoints: 2,
     sustainabilityPoints: 0,
     definitionOfDone: "New design implemented and approved by design team",
     sustainable: false,
-    susafCategory: "Human",
     relatedSusafEffects: ["User Experience"],
     order: 3,
     projectId: "project-1",
@@ -684,7 +631,7 @@ const mockTasks: Task[] = [
 ]
 
 // Update backlog items with projectId
-const mockBacklogItems: BacklogItem[] = [
+const mockBacklogItems: Item[] = [
   {
     id: "backlog-1",
     title: "Implement screen reader",
@@ -692,9 +639,7 @@ const mockBacklogItems: BacklogItem[] = [
     priority: "High+",
     sustainable: true,
     storyPoints: 8,
-    sustainabilityScore: 8,
     status: "In Progress",
-    susafCategory: "Human",
     assignedTo: "user-1",
     sustainabilityPoints: 8,
     relatedSusafEffects: ["Accessibility", "Inclusivity"],
@@ -709,9 +654,7 @@ const mockBacklogItems: BacklogItem[] = [
     priority: "High",
     sustainable: false,
     storyPoints: 5,
-    sustainabilityScore: 0,
     status: "To Do",
-    susafCategory: "Technical",
     definitionOfDone: "All tests pass with improved organization",
     projectId: "project-1",
     sprintId: "sprint-20",
@@ -723,9 +666,7 @@ const mockBacklogItems: BacklogItem[] = [
     priority: "Medium+",
     sustainable: true,
     storyPoints: 13,
-    sustainabilityScore: 7,
     status: "To Do",
-    susafCategory: "Technical",
     sustainabilityPoints: 7,
     relatedSusafEffects: ["Performance Improvement", "Energy Efficiency"],
     definitionOfDone: "Algorithm performance improved by 30%",
@@ -739,9 +680,7 @@ const mockBacklogItems: BacklogItem[] = [
     description: "Add caching layer to reduce database load",
     sustainable: true,
     storyPoints: 5,
-    sustainabilityScore: 8,
     status: "To Do",
-    susafCategory: "Technical",
     sustainabilityPoints: 8,
     definitionOfDone: "Cache hit rate of at least 70%",
     projectId: "project-1",
@@ -754,9 +693,7 @@ const mockBacklogItems: BacklogItem[] = [
     priority: "Medium",
     sustainable: false,
     storyPoints: 3,
-    sustainabilityScore: 2,
     status: "To Do",
-    susafCategory: "Human",
     definitionOfDone: "Users can update all profile settings",
     projectId: "project-1",
     sprintId: "sprint-21",
@@ -768,9 +705,7 @@ const mockBacklogItems: BacklogItem[] = [
     priority: "Medium+",
     sustainable: true,
     storyPoints: 2,
-    sustainabilityScore: 7,
     status: "To Do",
-    susafCategory: "Environmental",
     sustainabilityPoints: 7,
     definitionOfDone: "Image size reduced by at least 40% with acceptable quality",
     projectId: "project-2",
@@ -783,9 +718,7 @@ const mockBacklogItems: BacklogItem[] = [
     priority: "High",
     sustainable: false,
     storyPoints: 8,
-    sustainabilityScore: 3,
     status: "To Do",
-    susafCategory: "Technical",
     definitionOfDone: "Dashboard shows key metrics with filtering options",
     projectId: "project-1",
     sprintId: "sprint-22",
@@ -797,9 +730,7 @@ const mockBacklogItems: BacklogItem[] = [
     priority: "High+",
     sustainable: true,
     storyPoints: 5,
-    sustainabilityScore: 9,
     status: "To Do",
-    susafCategory: "Technical",
     sustainabilityPoints: 9,
     definitionOfDone: "Bundle size reduced by at least 25%",
     projectId: "project-1",
@@ -812,9 +743,7 @@ const mockBacklogItems: BacklogItem[] = [
     priority: "Medium+",
     sustainable: true,
     storyPoints: 13,
-    sustainabilityScore: 6,
     status: "To Do",
-    susafCategory: "Social",
     sustainabilityPoints: 6,
     definitionOfDone: "App functions offline and syncs when connection is restored",
     projectId: "project-1",
@@ -827,9 +756,7 @@ const mockBacklogItems: BacklogItem[] = [
     priority: "Low",
     sustainable: false,
     storyPoints: 3,
-    sustainabilityScore: 1,
     status: "To Do",
-    susafCategory: "Social",
     definitionOfDone: "Users can share content to major social platforms",
     projectId: "project-1",
     sprintId: "sprint-24",
@@ -841,9 +768,7 @@ const mockBacklogItems: BacklogItem[] = [
     priority: "Medium",
     sustainable: false,
     storyPoints: 5,
-    sustainabilityScore: 2,
     status: "To Do",
-    susafCategory: "Communication",
     definitionOfDone: "Email notifications sent and delivered successfully",
     projectId: "project-1",
     sprintId: "sprint-24",
@@ -855,9 +780,7 @@ const mockBacklogItems: BacklogItem[] = [
     priority: "High+",
     sustainable: true,
     storyPoints: 3,
-    sustainabilityScore: 8,
     status: "To Do",
-    susafCategory: "Technical",
     sustainabilityPoints: 8,
     definitionOfDone: "Query performance improved by at least 50%",
     projectId: "project-1",
@@ -1030,7 +953,7 @@ export function saveRetrospective(data: any) {
   return Promise.resolve()
 }
 
-export function addBacklogItem(item: Omit<BacklogItem, "id">) {
+export function addBacklogItem(item: Omit<Item, "id">) {
   console.log("Adding backlog item", item)
 
   // Add to cached backlog items
@@ -1043,7 +966,7 @@ export function addBacklogItem(item: Omit<BacklogItem, "id">) {
   return Promise.resolve(newItem)
 }
 
-export function addTask(task: Omit<Task, "id" | "order">) {
+export function addTask(task: Omit<Item, "id" | "order">) {
   console.log("Adding task", task)
 
   // Add to cached tasks
@@ -1068,7 +991,7 @@ export function deleteTask(taskId: string) {
   return Promise.resolve()
 }
 
-export function updateTask(taskId: string, updates: Partial<Task>) {
+export function updateTask(taskId: string, updates: Partial<Item>) {
   console.log("Updating task", taskId, updates)
   // Update the cached task
   const taskIndex = cachedTasks.findIndex((t) => t.id === taskId)
