@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from "react"
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd"
-import { CheckCircle, MessageCircle, Menu, Plus, Trash2, Calendar } from "lucide-react"
+import { CheckCircle, MessageCircle, Menu, Plus, Trash2, Calendar, Leaf } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -642,18 +642,12 @@ export default function SprintBoard() {
                                   className={
                                     item.priority === "Low"
                                       ? "bg-blue-100 text-blue-800"
-                                      : item.priority === "Low+"
-                                        ? "bg-blue-200 text-blue-900"
-                                        : item.priority === "Medium"
+                                      : item.priority === "Medium"
                                           ? "bg-yellow-100 text-yellow-800"
-                                          : item.priority === "Medium+"
-                                            ? "bg-yellow-200 text-yellow-900"
-                                            : item.priority === "High"
-                                              ? "bg-red-100 text-red-800"
-                                              : "bg-red-200 text-red-900"
+                                          : "bg-red-100 text-red-800"
                                   }
                                 >
-                                  {item.priority}
+                                  {item.sustainable ? `${item.priority}+` : item.priority}
                                 </Badge>
                                 {item.sustainable && (
                                   <Badge
@@ -663,6 +657,31 @@ export default function SprintBoard() {
                                     Sustainable
                                   </Badge>
                                 )}
+                              </div>
+                              <div className="flex justify-between items-center mb-2">
+                                <div className="flex items-center gap-3 text-gray-500">
+                                  {/* Story points display */}
+                                  <div className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded-md">
+                                    <span className="text-xs font-medium">SP</span>
+                                    <span className="text-xs">{item.storyPoints}</span>
+                                  </div>
+                                  
+                                  {/* Sustainability points display */}
+                                  {(item.sustainabilityPoints > 0 || item.sustainable) && (
+                                    <div className="flex items-center gap-1 bg-emerald-50 px-2 py-1 rounded-md">
+                                      <span className="text-xs font-medium text-emerald-700">SUS</span>
+                                      <span className="text-xs text-emerald-700">{item.sustainabilityPoints || 0}</span>
+                                    </div>
+                                  )}
+                                  
+                                  {/* Sustainability effects count */}
+                                  {item.relatedSusafEffects && item.relatedSusafEffects.length > 0 && (
+                                    <div className="flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-md">
+                                      <Leaf className="h-3 w-3 text-amber-700" />
+                                      <span className="text-xs text-amber-700">{item.relatedSusafEffects.length}</span>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                               <div className="flex justify-between items-center">
                                 <div className="flex items-center gap-3 text-gray-500">

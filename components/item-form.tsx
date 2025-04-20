@@ -49,14 +49,6 @@ export function ItemForm({
   isEdit = false,
   isSprintBoard = false
 }: ItemFormProps) {
-  const [tagsInput, setTagsInput] = useState("")
-
-  // Initialize tags input field if item has tags
-  useEffect(() => {
-    if (item.tags?.length) {
-      setTagsInput(item.tags.join(", "))
-    }
-  }, [item.tags])
   
   // If in sprint board, ensure the current sprint is selected when form initializes
   useEffect(() => {
@@ -67,18 +59,6 @@ export function ItemForm({
       }
     }
   }, [isSprintBoard, sprints, item.sprintId, onChange]);
-
-  const handleTagsChange = (input: string) => {
-    setTagsInput(input)
-    
-    // Process tags from comma-separated string
-    const tags = input
-      .split(",")
-      .map((tag) => tag.trim())
-      .filter((tag) => tag)
-      
-    onChange("tags", tags)
-  }
  
   return (
     <div className="space-y-4 py-4">
@@ -220,7 +200,7 @@ export function ItemForm({
                             </Badge>
                           </div>
                           <div className="text-xs text-gray-500 mt-1 ml-1">
-                            Impact: {effect.impact_level}/5 · Likelihood: {effect.likelihood}/5 · Type: {effect.order_of_impact}
+                            Impact: {effect.impact_level}/3 · Likelihood: {effect.likelihood}/5 · Type: {effect.order_of_impact}
                           </div>
                         </div>
                       </div>
@@ -319,15 +299,6 @@ export function ItemForm({
             <SelectItem value="Done">Done</SelectItem>
           </SelectContent>
         </Select>
-      </div>
-
-      <div className="space-y-2">
-        <Label>Tags</Label>
-        <Input
-          placeholder="Separate tags with commas"
-          value={tagsInput}
-          onChange={(e) => handleTagsChange(e.target.value)}
-        />
       </div>
 
       <div className={`flex ${showDelete ? 'justify-between' : 'justify-end'} gap-2 pt-4`}>
