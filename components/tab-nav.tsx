@@ -4,7 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { useProjectContext } from "./project-context"
-import { BarChart3, Kanban, RotateCcw, ListTodo, Users } from "lucide-react"
+import { BarChart3, Kanban, RotateCcw, ListTodo, Users, BookOpen } from "lucide-react"
 
 export function TabNav() {
   const pathname = usePathname()
@@ -21,6 +21,7 @@ export function TabNav() {
     { name: "Retrospective", href: "/retrospective", icon: RotateCcw },
     { name: "Backlog", href: "/backlog", icon: ListTodo },
     { name: "Team", href: "/team", icon: Users },
+    { name: "Education", href: "/education", icon: BookOpen },
   ]
 
   return (
