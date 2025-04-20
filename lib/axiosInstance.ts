@@ -118,19 +118,25 @@ export function getProjectById(projectId: string) {
   }
   
     
-    export function createSprint(sprint: Omit<Sprint, "id">) {
-      return axiosInstance.post('/sprints', sprint) 
-        .then(response => {
-          const newSprint = response.data;
-          console.log(newSprint);
-          return axiosInstance.patch(`/projects/${sprint.projectId}`, { $push: { sprints: newSprint.id } })  // Add sprint to project
-            .then(() => newSprint);
-        })
-        .catch(error => {
-          console.error('Error creating sprint:', error);
-          throw error;
-        });
-    }
+export function createSprint(sprint: Omit<Sprint, "id">) {
+  // Set initial values for items and sustainabilityScore if not provided
+  const sprintToCreate = {
+    ...sprint,
+    items: sprint.items || [],
+    sustainabilityScore: sprint.sustainabilityScore || 0
+  };
+  
+  return axiosInstance.post('/sprints', sprintToCreate) 
+    .then(response => {
+      const newSprint = response.data;
+      return axiosInstance.patch(`/projects/${sprint.projectId}`, { $push: { sprints: newSprint.id } })
+        .then(() => newSprint);
+    })
+    .catch(error => {
+      console.error('Error creating sprint:', error);
+      throw error;
+    });
+}
     
     export function saveRetrospective(data: any) {
       return axiosInstance.patch(`/sprints/${data.sprintId}/retrospective`, data)  // Adjust endpoint
@@ -150,32 +156,134 @@ export function getProjectById(projectId: string) {
         });
     }
     
-    export function addItem(item: Omit<Item, "id" | "order">) {
-      return axiosInstance.post('/items', item)  // Adjust endpoint
+// Add this new function to update a sprint's items and score
+export function updateSprintData(sprintId: string) {
+  return getAllItems()
+    .then(items => {
+      // Filter items belonging to this sprint
+      const sprintItems = items.filter((item: Item) => item.sprintId === sprintId);
+      
+      // Get item IDs
+      const itemIds = sprintItems.map((item: Item) => item.id);
+      
+      // Calculate the total sustainability points
+      const totalSustainabilityPoints = sprintItems.reduce(
+        (sum: number, item: Item) => sum + (item.sustainabilityPoints || 0), 
+        0
+      );
+      
+      // Update the sprint with the new data
+      return axiosInstance.patch(`/sprints/${sprintId}`, {
+        items: itemIds,
+        sustainabilityScore: totalSustainabilityPoints
+      })
         .then(response => response.data)
         .catch(error => {
-          console.error('Error adding item:', error);
+          console.error(`Error updating sprint ${sprintId} data:`, error);
           throw error;
         });
-    }
-  
-    export function deleteItem(itemId: string) {
-      return axiosInstance.delete(`/items/${itemId}`)  // Adjust endpoint
-        .then(() => Promise.resolve())
-        .catch(error => {
-          console.error(`Error deleting item ${itemId}:`, error);
-          throw error;
+    })
+    .catch(error => {
+      console.error('Error fetching items for sprint update:', error);
+      throw error;
+    });
+}
+
+// Modify addItem to update sprint data afterwards
+export function addItem(item: Omit<Item, "id" | "order">) {
+  return axiosInstance.post('/items', item)
+    .then(response => {
+      const newItem = response.data;
+      
+      // If item has a sprint, update sprint data
+      if (newItem.sprintId) {
+        updateSprintData(newItem.sprintId)
+          .catch(err => console.error('Failed to update sprint after adding item:', err));
+      }
+      
+      return newItem;
+    })
+    .catch(error => {
+      console.error('Error adding item:', error);
+      throw error;
+    });
+}
+
+// Modify updateItem to handle sprint association changes
+export function updateItem(itemId: string, updates: Partial<Item>) {
+  // First fetch the current state of the item
+  return axiosInstance.get(`/items/${itemId}`)
+    .then(response => {
+      const oldItem = response.data;
+      const oldSprintId = oldItem.sprintId;
+      
+      // Then update the item
+      return axiosInstance.patch(`/items/${itemId}`, updates)
+        .then(updateResponse => {
+          const updatedItem = updateResponse.data;
+          const newSprintId = updatedItem.sprintId;
+          
+          // Array to store promises
+          const updatePromises = [];
+          
+          // If the item was removed from a sprint
+          if (oldSprintId && (!newSprintId || oldSprintId !== newSprintId)) {
+            updatePromises.push(updateSprintData(oldSprintId));
+          }
+          
+          // If the item was added to a sprint or changed sprints
+          if (newSprintId && (!oldSprintId || oldSprintId !== newSprintId)) {
+            updatePromises.push(updateSprintData(newSprintId));
+          }
+          
+          // If the item's sustainability points changed but sprint didn't
+          if (oldSprintId && newSprintId && oldSprintId === newSprintId && 
+              oldItem.sustainabilityPoints !== updatedItem.sustainabilityPoints) {
+            updatePromises.push(updateSprintData(newSprintId));
+          }
+          
+          // Wait for all update promises to resolve
+          return Promise.all(updatePromises)
+            .then(() => updatedItem)
+            .catch(err => {
+              console.error('Error updating sprint data after item update:', err);
+              return updatedItem; // Still return the updated item even if sprint update failed
+            });
         });
-    }
-    
-    export function updateItem(itemId: string, updates: Partial<Item>) {
-      return axiosInstance.patch(`/items/${itemId}`, updates)  // Adjust endpoint
-        .then(response => response.data)
-        .catch(error => {
-          console.error(`Error updating item ${itemId}:`, error);
-          throw error;
+    })
+    .catch(error => {
+      console.error(`Error updating item ${itemId}:`, error);
+      throw error;
+    });
+}
+
+// Modify deleteItem to update sprint data afterwards
+export function deleteItem(itemId: string) {
+  // First get the item to see if it belongs to a sprint
+  return axiosInstance.get(`/items/${itemId}`)
+    .then(response => {
+      const item = response.data;
+      const sprintId = item.sprintId;
+      
+      // Delete the item
+      return axiosInstance.delete(`/items/${itemId}`)
+        .then(() => {
+          // If the item belonged to a sprint, update sprint data
+          if (sprintId) {
+            return updateSprintData(sprintId)
+              .catch(err => {
+                console.error('Failed to update sprint after deleting item:', err);
+              });
+          }
         });
-    }
+    })
+    .catch(error => {
+      console.error(`Error deleting item ${itemId}:`, error);
+      throw error;
+    });
+}
+
+   
     export function getUserById(userId: string) {
       return axiosInstance.get(`/users/${userId}`)  // Adjust endpoint
         .then(response => response.data)

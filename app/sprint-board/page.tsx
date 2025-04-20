@@ -293,7 +293,11 @@ export default function SprintBoard() {
     setLocalItems(updatedItems)
 
     // Update the database
-    updateItemStatus(draggableId, destination.droppableId as "To Do" | "In Progress" | "Done").catch((error) => {
+    updateItem(draggableId, {
+      ...itemToMove,
+      status: destination.droppableId as "To Do" | "In Progress" | "Done",
+      order: destination.index
+    }).catch((error) => {
       console.error("Error updating item status:", error)
       // Revert to original items if there's an error
       if (items) {
@@ -370,13 +374,20 @@ export default function SprintBoard() {
       
       await updateItem(itemToUpdate.id, itemToUpdate)
 
-      // Update local state
-      setLocalItems(localItems.map((item) => (item.id === itemToUpdate.id ? itemToUpdate : item)))
+      // If the item was unassigned from the current sprint, remove it from local state
+      if (itemToUpdate.sprintId === "" || itemToUpdate.sprintId !== selectedSprintId) {
+        setLocalItems(prevItems => prevItems.filter(item => item.id !== itemToUpdate.id))
+      } else {
+        // Otherwise, just update it in the local state
+        setLocalItems(prevItems => prevItems.map((item) => (item.id === itemToUpdate.id ? itemToUpdate : item)))
+      }
 
       setIsItemDialogOpen(false)
       toast({
-        title: "Item updated",
-        description: "Item has been updated successfully.",
+        title: itemToUpdate.sprintId ? "Item updated" : "Item unassigned",
+        description: itemToUpdate.sprintId ? 
+          "Item has been updated successfully." : 
+          "Item has been unassigned from the sprint and moved to the backlog.",
       })
     }
   }
@@ -635,9 +646,18 @@ export default function SprintBoard() {
 
         <div className="mb-6 p-4 bg-gray-50 rounded-md">
           <h2 className="text-lg font-medium mb-2">Sprint Sustainability Status</h2>
-          <div className="p-4 bg-gray-100 rounded-md">
-            <div className="text-sm font-medium">Sprint Sustainability Goal:</div>
-            <div>{sprint?.goal}</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-4 bg-gray-100 rounded-md">
+              <div className="text-sm font-medium">Sprint Sustainability Goal:</div>
+              <div>{sprint?.goal}</div>
+            </div>
+            <div className="p-4 bg-gray-100 rounded-md">
+              <div className="text-sm font-medium">Current Sustainability Score:</div>
+              <div className="flex items-center">
+                <span className="text-xl font-bold text-emerald-600">{sprint?.sustainabilityScore || 0}</span>
+                <span className="text-sm text-gray-500 ml-2">points</span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -784,7 +804,7 @@ export default function SprintBoard() {
                 showDelete={true}
                 onDelete={handleDeleteItem}
                 isEdit={true}
-                isSprintBoard={true}
+                isSprintBoard={false} // Change to false to allow unassigning
               />
             )}
           </DialogContent>

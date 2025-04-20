@@ -110,9 +110,7 @@ export function ItemForm({
               <SelectValue placeholder={isSprintBoard ? "Current Sprint" : "Select sprint"} />
             </SelectTrigger>
             <SelectContent>
-              {!isSprintBoard && (
-                <SelectItem value="unassigned">No Sprint Assigned</SelectItem>
-              )}
+              <SelectItem value="unassigned">No Sprint Assigned</SelectItem>
               {sprints.map((s) => (
                 <SelectItem key={s.id} value={s.id}>
                   {s.name}

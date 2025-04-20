@@ -101,6 +101,9 @@ export function UnassignedItemsSelector({ sprintId, projectId, onClose, onItemsA
 
       await Promise.all(updatePromises)
       
+      // No need to manually update the sprint data here since
+      // our enhanced updateItem function does this automatically
+      
       toast({
         title: "Success",
         description: `Added ${selectedItems.size} items to the sprint.`,
