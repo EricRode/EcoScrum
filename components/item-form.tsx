@@ -28,6 +28,7 @@ interface ItemFormProps {
   showDelete?: boolean
   onDelete?: () => void
   isEdit?: boolean
+  isSprintBoard?: boolean
 }
 
 export function ItemForm({
@@ -45,7 +46,8 @@ export function ItemForm({
   cancelLabel = "Cancel",
   showDelete = false,
   onDelete,
-  isEdit = false
+  isEdit = false,
+  isSprintBoard = false
 }: ItemFormProps) {
   const [tagsInput, setTagsInput] = useState("")
 
@@ -55,6 +57,16 @@ export function ItemForm({
       setTagsInput(item.tags.join(", "))
     }
   }, [item.tags])
+  
+  // If in sprint board, ensure the current sprint is selected when form initializes
+  useEffect(() => {
+    if (isSprintBoard && sprints?.length > 0 && (!item.sprintId || !sprints.some(s => s.id === item.sprintId))) {
+      const currentSprint = sprints[sprints.length - 1];
+      if (currentSprint) {
+        onChange("sprintId", currentSprint.id);
+      }
+    }
+  }, [isSprintBoard, sprints, item.sprintId, onChange]);
 
   const handleTagsChange = (input: string) => {
     setTagsInput(input)
@@ -102,25 +114,25 @@ export function ItemForm({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="Low">Low</SelectItem>
-              <SelectItem value="Low+">Low+</SelectItem>
               <SelectItem value="Medium">Medium</SelectItem>
-              <SelectItem value="Medium+">Medium+</SelectItem>
               <SelectItem value="High">High</SelectItem>
-              <SelectItem value="High+">High+</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
         <div className="space-y-2">
-          <Label>Sprint Assignment</Label>
+          <Label>Sprint Assignment{isSprintBoard ? " (Current Sprint)" : ""}</Label>
           <Select
-            value={item.sprintId || ""}
-            onValueChange={(value) => onChange("sprintId", value)}
+            value={item.sprintId || "unassigned"}
+            onValueChange={(value) => onChange("sprintId", value === "unassigned" ? "" : value)}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Select sprint" />
+              <SelectValue placeholder={isSprintBoard ? "Current Sprint" : "Select sprint"} />
             </SelectTrigger>
             <SelectContent>
+              {!isSprintBoard && (
+                <SelectItem value="unassigned">No Sprint Assigned</SelectItem>
+              )}
               {sprints.map((s) => (
                 <SelectItem key={s.id} value={s.id}>
                   {s.name}
@@ -134,13 +146,14 @@ export function ItemForm({
       <div className="space-y-2">
         <Label>Assigned Person</Label>
         <Select
-          value={item.assignedTo || ""}
-          onValueChange={(value) => onChange("assignedTo", value)}
+          value={item.assignedTo || "unassigned"}
+          onValueChange={(value) => onChange("assignedTo", value === "unassigned" ? "" : value)}
         >
           <SelectTrigger>
             <SelectValue placeholder="Select a person..." />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="unassigned">Not Assigned</SelectItem>
             {users.map((user) => (
               <SelectItem key={user.id} value={user.id}>
                 {user.name}
@@ -148,6 +161,17 @@ export function ItemForm({
             ))}
           </SelectContent>
         </Select>
+      </div>
+
+      <div className="flex items-center space-x-2 py-2">
+        <Checkbox 
+          id="sustainable"
+          checked={!!item.sustainable}
+          onCheckedChange={(checked) => onChange("sustainable", !!checked)}
+        />
+        <Label htmlFor="sustainable" className="font-medium">
+          Sustainable Item
+        </Label>
       </div>
 
       <div className="space-y-2">
@@ -196,7 +220,7 @@ export function ItemForm({
                             </Badge>
                           </div>
                           <div className="text-xs text-gray-500 mt-1 ml-1">
-                            Impact: {effect.impact_level}/3 · Likelihood: {effect.likelihood}/5 · Type: {effect.order_of_impact}
+                            Impact: {effect.impact_level}/5 · Likelihood: {effect.likelihood}/5 · Type: {effect.order_of_impact}
                           </div>
                         </div>
                       </div>
@@ -217,7 +241,6 @@ export function ItemForm({
             <p className="text-sm font-medium mb-1">Selected effects:</p>
             <div className="flex flex-wrap gap-2">
               {selectedEffects.map((effectId) => {
-                // Find the effect across all dimensions
                 let effect;
                 for (const dimension of sustainabilityEffects) {
                   effect = dimension.effects?.find(e => e._id === effectId);

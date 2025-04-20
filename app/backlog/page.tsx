@@ -283,6 +283,7 @@ export default function Backlog() {
                 onToggleEffect={toggleEffect}                 // Function to toggle selection
                 projectId={selectedProjectId || ""}
                 submitLabel="Save PBI"
+                isSprintBoard={false} // Explicitly set to false for backlog
               />
             </DialogContent>
           </Dialog>

@@ -706,240 +706,26 @@ export default function SprintBoard() {
               <DialogTitle>{selectedItem?.title}</DialogTitle>
               <DialogDescription>View and edit item details</DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>PBI Title</Label>
-                <Input value={editedItem?.title || ""} onChange={(e) => handleItemChange("title", e.target.value)} />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Description</Label>
-                <Textarea
-                  value={editedItem?.description || ""}
-                  onChange={(e) => handleItemChange("description", e.target.value)}
-                  className="resize-none h-24"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Priority</Label>
-                  <Select
-                    value={editedItem?.priority || "Medium"}
-                    onValueChange={(value) => handleItemChange("priority", value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select priority" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Low">Low</SelectItem>
-                      <SelectItem value="Low+">Low+</SelectItem>
-                      <SelectItem value="Medium">Medium</SelectItem>
-                      <SelectItem value="Medium+">Medium+</SelectItem>
-                      <SelectItem value="High">High</SelectItem>
-                      <SelectItem value="High+">High+</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Sprint Assignment</Label>
-                  <Select
-                    value={editedItem?.sprintId || ""}
-                    onValueChange={(value) => handleItemChange("sprintId", value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select sprint" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {allSprints.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>
-                          {s.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Assigned Person</Label>
-                <Select
-                  value={editedItem?.assignedTo || ""}
-                  onValueChange={(value) => handleItemChange("assignedTo", value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a person..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {allUsers.map((user) => (
-                      <SelectItem key={user.id} value={user.id}>
-                        {user.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Sustainability Context</Label>
-                <Textarea
-                  value={editedItem?.sustainabilityContext || ""}
-                  onChange={(e) => handleItemChange("sustainabilityContext", e.target.value)}
-                  className="resize-none h-16"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Sustainability Effects</Label>
-                {sustainabilityEffects.length > 0 ? (
-                  <ScrollArea className="h-[250px] border rounded-md p-4">
-                    <div className="space-y-6">
-                      {sustainabilityEffects.map((dimension) => (
-                        <div key={dimension._id} className="space-y-2">
-                          <h3 className="font-medium text-sm text-gray-900 bg-gray-100 p-2 rounded">
-                            {dimension.name}: {dimension.question}
-                          </h3>
-                          
-                          <div className="ml-2 space-y-3">
-                            {dimension.effects && dimension.effects.map((effect) => (
-                              <div key={effect._id} className="flex items-start space-x-2">
-                                <Checkbox
-                                  id={`edit-effect-${effect._id}`}
-                                  checked={editItemSelectedEffects.includes(effect._id)}
-                                  onCheckedChange={() => toggleEditEffect(effect._id)}
-                                  className="mt-1"
-                                />
-                                <div>
-                                  <div className="flex items-center gap-2">
-                                    <Label htmlFor={`edit-effect-${effect._id}`} className="font-medium text-sm">
-                                      {effect.description}
-                                    </Label>
-                                    <Badge 
-                                      variant="outline" 
-                                      className={effect.is_positive ? 
-                                        "bg-green-50 text-green-700 border-green-200" : 
-                                        "bg-amber-50 text-amber-700 border-amber-200"
-                                      }
-                                    >
-                                      {effect.is_positive ? "Positive" : "Negative"}
-                                    </Badge>
-                                  </div>
-                                  <div className="text-xs text-gray-500 mt-1 ml-1">
-                                    Impact: {effect.impact_level}/5 · Likelihood: {effect.likelihood}/5 · Type: {effect.order_of_impact}
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                ) : (
-                  <div className="text-center p-4 border rounded-md">
-                    <p className="text-sm text-gray-500">No sustainability effects available for this project.</p>
-                  </div>
-                )}
-
-                {editItemSelectedEffects.length > 0 && (
-                  <div className="mt-2">
-                    <p className="text-sm font-medium mb-1">Selected effects:</p>
-                    <div className="flex flex-wrap gap-2">
-                      {editItemSelectedEffects.map((effectId) => {
-                        // Find the effect across all dimensions
-                        let effect;
-                        for (const dimension of sustainabilityEffects) {
-                          effect = dimension.effects.find(e => e._id === effectId);
-                          if (effect) break;
-                        }
-                        return (
-                          <Badge 
-                            key={effectId}
-                            variant="secondary"
-                            className="pl-2 bg-emerald-50 text-emerald-700 border-emerald-200"
-                          >
-                            {effect ? effect.description.substring(0, 30) + (effect.description.length > 30 ? '...' : '') : 'Unknown effect'}
-                            <button 
-                              className="ml-1 hover:bg-emerald-100 rounded-full p-1"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                toggleEditEffect(effectId);
-                              }}
-                            >
-                              ✕
-                            </button>
-                          </Badge>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Sustainability Points</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    max="10"
-                    value={editedItem?.sustainabilityPoints || 0}
-                    onChange={(e) => handleItemChange("sustainabilityPoints", Number(e.target.value))}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Story Points</Label>
-                  <Input
-                    type="number"
-                    min="1"
-                    value={editedItem?.storyPoints || 1}
-                    onChange={(e) => handleItemChange("storyPoints", Number(e.target.value))}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Definition of Done</Label>
-                <Textarea
-                  value={editedItem?.definitionOfDone || ""}
-                  onChange={(e) => handleItemChange("definitionOfDone", e.target.value)}
-                  className="resize-none h-16"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Status</Label>
-                <Select
-                  value={editedItem?.status || "To Do"}
-                  onValueChange={(value) => handleItemChange("status", value as "To Do" | "In Progress" | "Done")}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="To Do">To Do</SelectItem>
-                    <SelectItem value="In Progress">In Progress</SelectItem>
-                    <SelectItem value="Done">Done</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <DialogFooter className="flex justify-between">
-              <Button variant="destructive" onClick={handleDeleteItem}>
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete
-              </Button>
-              <div className="space-x-2">
-                <Button variant="outline" onClick={() => setIsItemDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleSaveChanges} className="bg-gray-900 hover:bg-gray-800">
-                  Save Changes
-                </Button>
-              </div>
-            </DialogFooter>
+            {editedItem && (
+              <ItemForm
+                item={editedItem}
+                onChange={handleItemChange}
+                onSubmit={handleSaveChanges}
+                onCancel={() => setIsItemDialogOpen(false)}
+                users={allUsers}
+                sprints={allSprints}
+                sustainabilityEffects={sustainabilityEffects}
+                selectedEffects={editItemSelectedEffects}
+                onToggleEffect={toggleEditEffect}
+                projectId={selectedProjectId || ""}
+                submitLabel="Save Changes"
+                cancelLabel="Cancel"
+                showDelete={true}
+                onDelete={handleDeleteItem}
+                isEdit={true}
+                isSprintBoard={true}
+              />
+            )}
           </DialogContent>
         </Dialog>
 
@@ -962,6 +748,7 @@ export default function SprintBoard() {
               onToggleEffect={toggleEffect}
               projectId={selectedProjectId || ""}
               submitLabel="Add Item"
+              isSprintBoard={true} // Set to true for sprint board
             />
           </DialogContent>
         </Dialog>

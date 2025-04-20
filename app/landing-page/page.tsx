@@ -4,7 +4,7 @@ import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
-import { Leaf, BarChart3, Kanban, RotateCcw, CheckCircle } from "lucide-react"
+import { Leaf, BarChart3, Kanban, RotateCcw, CheckCircle, FileText } from "lucide-react"
 import Link from "next/link"
 
 export default function LandingPage() {
@@ -37,6 +37,23 @@ export default function LandingPage() {
               Integrate sustainability into your agile development process with our comprehensive scrum management
               platform.
             </p>
+            
+            {/* User Manual Download Button */}
+            <div className="mb-8 flex items-center justify-center bg-amber-50 px-6 py-4 rounded-lg border border-amber-200 w-full max-w-xl">
+              <FileText className="h-6 w-6 mr-2 text-amber-600" />
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between flex-grow">
+                <span className="text-amber-800 font-medium">New to EcoScrum? Get started quickly:</span>
+                <a 
+                  href="/EcoScrum User Manual 1.pdf" 
+                  download 
+                  className="mt-2 sm:mt-0 flex items-center bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-md transition-colors"
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  Download User Manual
+                </a>
+              </div>
+            </div>
+            
             <div className="flex flex-col sm:flex-row gap-4">
               <Link href="/login">
                 <Button size="lg" className="px-8">
