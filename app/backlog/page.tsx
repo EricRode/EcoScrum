@@ -106,9 +106,9 @@ export default function Backlog() {
   const [filters, setFilters] = useState({
     sustainability: "All",
     priority: "All",
-    susafCategory: "All",
     status: "All",
     search: "",
+    sprintAssignment: "Unassigned" // New filter with "Unassigned" as default
   })
 
   const [newItem, setNewItem] = useState<Partial<Item>>({
@@ -300,9 +300,11 @@ export default function Backlog() {
 
   // Filter backlog items based on selected sprint and other filters
   const filteredItems = backlogItems.filter((item) => {
-    // Filter by sprint
-    if (selectedSprintId && selectedSprintId !== "all") {
-      if (item.sprintId !== selectedSprintId) return false
+    // Filter by sprint assignment
+    if (filters.sprintAssignment === "Unassigned") {
+      if (item.sprintId) return false;  // Skip items that have a sprintId
+    } else if (filters.sprintAssignment === "Current") {
+      if (item.sprintId !== selectedSprintId) return false;  // Skip items not in current sprint
     }
 
     // Apply other filters
@@ -314,8 +316,6 @@ export default function Backlog() {
     if (filters.priority !== "All") {
       if (item.priority !== filters.priority) return false
     }
-
-    if (filters.susafCategory !== "All" && item.susafCategory !== filters.susafCategory) return false
 
     if (filters.status !== "All" && item.status !== filters.status) return false
 
@@ -363,7 +363,7 @@ export default function Backlog() {
     
     // Default string comparison for title and status
     const valA = a[sortConfig.key as keyof typeof a] as string;
-    const valB = b[sortConfig.key as keyof typeof b] as string;
+    const valB = b[sortConfig.key as keyof typeof a] as string;
     
     if (sortConfig.direction === 'asc') {
       return valA > valB ? 1 : -1;
@@ -476,6 +476,23 @@ export default function Backlog() {
               value={filters.search}
               onChange={(e) => handleFilterChange("search", e.target.value)}
             />
+          </div>
+
+          <div>
+            <Label className="mb-2 block">Sprint Assignment</Label>
+            <Select
+              value={filters.sprintAssignment}
+              onValueChange={(value) => handleFilterChange("sprintAssignment", value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Filter by assignment" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="All">All Items</SelectItem>
+                <SelectItem value="Unassigned">Unassigned Items</SelectItem>
+                <SelectItem value="Current">Current Sprint</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div>
