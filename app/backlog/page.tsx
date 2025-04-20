@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useBacklogData, addBacklogItem, getAllSprints, type BacklogItem } from "@/lib/axiosInstance"
+import { useBacklogData, addBacklogItem, getAllSprints, type Item } from "@/lib/axiosInstance"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/components/auth-provider"
 import { useSprintContext } from "@/components/sprint-context"
@@ -68,15 +68,13 @@ export default function Backlog() {
   const [selectedCategory, setSelectedCategory] = useState<string>("")
   const [availableEffects, setAvailableEffects] = useState<string[]>([])
 
-  const [newItem, setNewItem] = useState<Partial<BacklogItem>>({
+  const [newItem, setNewItem] = useState<Partial<Item>>({
     title: "",
     description: "",
     priority: "High",
     sustainable: false,
     storyPoints: 3,
-    sustainabilityScore: 0,
     status: "To Do",
-    susafCategory: undefined,
     sustainabilityPoints: 0,
     relatedSusafEffects: [],
     definitionOfDone: "",
@@ -124,7 +122,7 @@ export default function Backlog() {
     setFilters((prev) => ({ ...prev, [key]: value }))
   }
 
-  const handleNewItemChange = (key: keyof BacklogItem, value: any) => {
+  const handleNewItemChange = (key: keyof Item, value: any) => {
     setNewItem((prev) => ({ ...prev, [key]: value }))
   }
 
@@ -139,7 +137,7 @@ export default function Backlog() {
       ...newItem,
       tags,
       sprintId: selectedSprintId,
-    } as Omit<BacklogItem, "id">
+    } as Omit<Item, "id">
 
     await addBacklogItem(itemToAdd)
     setIsAddDialogOpen(false)
@@ -155,9 +153,7 @@ export default function Backlog() {
       priority: "High",
       sustainable: false,
       storyPoints: 3,
-      sustainabilityScore: 0,
       status: "To Do",
-      susafCategory: undefined,
       sustainabilityPoints: 0,
       relatedSusafEffects: [],
       definitionOfDone: "",
@@ -170,11 +166,6 @@ export default function Backlog() {
 
   const handleSprintChange = (sprintId: string) => {
     setSelectedSprintId(sprintId)
-  }
-
-  const handleSusafCategoryChange = (category: string) => {
-    setSelectedCategory(category)
-    handleNewItemChange("susafCategory", category)
   }
 
   const handleSusafEffectsChange = (effect: string) => {
@@ -338,22 +329,6 @@ export default function Backlog() {
                     onCheckedChange={(checked) => handleNewItemChange("sustainable", checked)}
                   />
                   <Label htmlFor="sustainable">This item has sustainability impact</Label>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>SuSAF Category</Label>
-                  <Select value={selectedCategory} onValueChange={handleSusafCategoryChange}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {SUSAF_CATEGORIES.map((category) => (
-                        <SelectItem key={category} value={category}>
-                          {category}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
                 </div>
 
                 {selectedCategory && (

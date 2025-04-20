@@ -30,7 +30,7 @@ import {
   getAllSprints,
   createSprint,
   getSustainabilityEffects,
-  type Task,
+  type Item,
   User,
 } from "@/lib/axiosInstance"
 import { useRouter } from "next/navigation"
@@ -81,7 +81,7 @@ export default function SprintBoard() {
   const { data: tasks, loading: tasksLoading } = useTasksData(sprint?.id || "")
 
   // Local state for tasks to enable immediate UI updates
-  const [localTasks, setLocalTasks] = useState<Task[]>([])
+  const [localTasks, setLocalTasks] = useState<Item[]>([])
 
   // Ref to track if we've already updated the local tasks
   const tasksUpdatedRef = useRef(false)
@@ -124,11 +124,11 @@ export default function SprintBoard() {
     }
   }, [localTasks])
 
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+  const [selectedTask, setSelectedTask] = useState<Item | null>(null)
   const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false)
   const [isAddTaskDialogOpen, setIsAddTaskDialogOpen] = useState(false)
   const [isCreateSprintDialogOpen, setIsCreateSprintDialogOpen] = useState(false)
-  const [editedTask, setEditedTask] = useState<Task | null>(null)
+  const [editedTask, setEditedTask] = useState<Item | null>(null)
 
   // State for new sprint creation
   const [newSprint, setNewSprint] = useState({
@@ -171,7 +171,7 @@ export default function SprintBoard() {
     relatedSusafEffects: [] as string[],
   }
 
-  const [newTask, setNewTask] = useState<Partial<Task>>(newTaskInitialState)
+  const [newTask, setNewTask] = useState<Partial<Item>>(newTaskInitialState)
 
   // Ref to track if we've updated the newTask.sprintId
   const sprintIdUpdatedRef = useRef(false)
@@ -309,21 +309,21 @@ export default function SprintBoard() {
     router.push("/retrospective")
   }
 
-  const openTaskDialog = (task: Task) => {
+  const openTaskDialog = (task: Item) => {
     setSelectedTask(task)
     setEditedTask({ ...task })
     // Initialize selected effects from the task (try both possible locations)
-    setEditTaskSelectedEffects(task.sustainabilityEffects || task.relatedSusafEffects || [])
+    setEditTaskSelectedEffects(task.relatedSusafEffects || task.relatedSusafEffects || [])
     setIsTaskDialogOpen(true)
   }
 
-  const handleTaskChange = (key: keyof Task, value: any) => {
+  const handleTaskChange = (key: keyof Item, value: any) => {
     if (editedTask) {
       setEditedTask({ ...editedTask, [key]: value })
     }
   }
 
-  const handleNewTaskChange = (key: keyof Task, value: any) => {
+  const handleNewTaskChange = (key: keyof Item, value: any) => {
     setNewTask((prev) => ({ ...prev, [key]: value }))
   }
 
@@ -350,8 +350,7 @@ export default function SprintBoard() {
         
       setEditedTask({
         ...editedTask,
-        sustainabilityEffects: updatedEffects,
-        relatedSusafEffects: updatedEffects
+        relatedSusafEffects: updatedEffects,
       })
     }
   }
@@ -384,14 +383,13 @@ export default function SprintBoard() {
         ...newTask,
         sprintId: sprint?.id || "",
         projectId: selectedProjectId || "", 
-        sustainabilityEffects: selectedEffects, // Save this field
-        relatedSusafEffects: selectedEffects, // Also save to relatedSusafEffects for compatibility
-      } as Omit<Task, "id" | "order">
+        relatedSusafEffects: selectedEffects, // Save this field
+      } as Omit<Item, "id" | "order">
 
       const newTaskWithId = await addTask(taskToAdd)
 
       // Add to local state
-      setLocalTasks((prev) => [...prev, newTaskWithId as Task])
+      setLocalTasks((prev) => [...prev, newTaskWithId as Item])
 
       setIsAddTaskDialogOpen(false)
       toast({
@@ -480,11 +478,6 @@ export default function SprintBoard() {
       // Reset the tasks updated flag when changing sprints
       tasksUpdatedRef.current = false
     }
-  }
-
-  const handleSusafCategoryChange = (category: string) => {
-    setSelectedCategory(category)
-    handleNewTaskChange("susafCategory", category)
   }
 
   const handleSusafEffectsChange = (effect: string) => {
@@ -879,7 +872,7 @@ export default function SprintBoard() {
                     type="number"
                     min="0"
                     max="10"
-                    value={editedTask?.sustainabilityPoints || editedTask?.sustainabilityWeight || 0}
+                    value={editedTask?.sustainabilityPoints || 0}
                     onChange={(e) => handleTaskChange("sustainabilityPoints", Number(e.target.value))}
                   />
                 </div>
@@ -1025,22 +1018,6 @@ export default function SprintBoard() {
                   placeholder="Describe sustainability impact"
                   className="resize-none h-16"
                 />
-              </div>
-
-              <div className="space-y-2">
-                <Label>SuSAF Category</Label>
-                <Select value={selectedCategory} onValueChange={handleSusafCategoryChange}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SUSAF_CATEGORIES.map((category) => (
-                      <SelectItem key={category} value={category}>
-                        {category}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
 
               {selectedCategory && (

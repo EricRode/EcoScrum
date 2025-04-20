@@ -44,7 +44,7 @@ axiosInstance.interceptors.response.use(
 
 export default axiosInstance;
 
-export function addBacklogItem(item: Omit<BacklogItem, "id">) {
+export function addBacklogItem(item: Omit<Item, "id">) {
     return axiosInstance.post('/backlog-items', item)  // Adjust endpoint
       .then(response => response.data)
       .catch(error => {
@@ -149,7 +149,7 @@ export function addBacklogItem(item: Omit<BacklogItem, "id">) {
           });
       }
       
-      export function addTask(task: Omit<Task, "id" | "order">) {
+      export function addTask(task: Omit<Item, "id" | "order">) {
         return axiosInstance.post('/tasks', task)  // Adjust endpoint
           .then(response => response.data)
           .catch(error => {
@@ -167,7 +167,7 @@ export function addBacklogItem(item: Omit<BacklogItem, "id">) {
           });
       }
       
-      export function updateTask(taskId: string, updates: Partial<Task>) {
+      export function updateTask(taskId: string, updates: Partial<Item>) {
         return axiosInstance.patch(`/tasks/${taskId}`, updates)  // Adjust endpoint
           .then(response => response.data)
           .catch(error => {
@@ -479,7 +479,7 @@ export interface Project {
   sprints: string[] // Sprint IDs
 }
 
-export interface Task {
+/* export interface Item {
   id: string
   title: string
   description: string
@@ -494,14 +494,13 @@ export interface Task {
   storyPoints: number
   sustainabilityPoints: number
   relatedSusafEffects?: string[]
-  sustainabilityEffects?: string[] // Array of effect IDs
   definitionOfDone?: string
   tags?: string[]
   sustainable: boolean
   susafCategory?: SusafCategory
   order: number
   projectId: string
-}
+} */
 
 export interface Sprint {
   id: string
@@ -523,21 +522,25 @@ export interface Sprint {
   }
 }
 
-export interface BacklogItem {
+export interface Item {
   id: string
   title: string
   description: string
   priority: (typeof PRIORITY_LEVELS)[number]
+  status: (typeof TASK_STATUSES)[number]
+  projectId: string
+  
+  // Common optional properties
   sustainable: boolean
   storyPoints: number
-  sustainabilityScore: number
-  status: (typeof TASK_STATUSES)[number]
-  susafCategory?: SusafCategory
+  sustainabilityPoints?: number
   assignedTo?: string
   sprintId?: string
-  projectId: string
-  sustainabilityPoints?: number
   relatedSusafEffects?: string[]
   definitionOfDone?: string
   tags?: string[]
-}
+  sustainabilityContext?: string
+  comments?: number
+  subtasks?: number
+  order?: number
+  }
