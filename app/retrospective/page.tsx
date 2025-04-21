@@ -1,8 +1,8 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
-import { useSprintData, saveRetrospective, getAllSprints } from "@/lib/axiosInstance"
+import { useState, useEffect, useMemo } from "react"
+import { useSprintData, saveRetrospective, getAllSprints, useItemsData, getAllItems } from "@/lib/axiosInstance"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/components/auth-provider"
 import { useSprintContext } from "@/components/sprint-context"
@@ -21,6 +21,9 @@ export default function Retrospective() {
   const { selectedProjectId } = useProjectContext()
 
   const [allSprints, setAllSprints] = useState<any[]>([])
+  const [previousSprint, setPreviousSprint] = useState<any>(null)
+  const [allItems, setAllItems] = useState<any[]>([])
+
   useEffect(() => {
     const fetchSprints = async () => {
       try {
@@ -45,6 +48,64 @@ export default function Retrospective() {
     selectedSprintId || undefined,
     selectedProjectId
   )
+
+  const { data: items } = useItemsData(selectedSprintId || "")
+
+  useEffect(() => {
+    const fetchAllItems = async () => {
+      try {
+        const items = await getAllItems()
+        setAllItems(items)
+      } catch (error) {
+        console.error("Failed to fetch all items", error)
+      }
+    }
+    fetchAllItems()
+  }, [])
+
+  useEffect(() => {
+    if (sprint && allSprints.length > 0) {
+      const currentIndex = allSprints.findIndex((s) => s.id === sprint.id)
+      if (currentIndex > 0) {
+        setPreviousSprint(allSprints[currentIndex - 1])
+      } else {
+        setPreviousSprint(null)
+      }
+    }
+  }, [sprint, allSprints])
+
+  const metrics = useMemo(() => {
+    if (!sprint || !items) {
+      return {
+        progress: 0,
+        sustainabilityScore: 0,
+        previousScore: 0,
+        effectsTackled: 0,
+      }
+    }
+
+    const sustainabilityScore = items
+      .filter((item) => item.status === "Done")
+      .reduce((sum, item) => sum + (item.sustainabilityPoints || 0), 0)
+
+    const previousScore = previousSprint?.sustainabilityScore || 0
+
+    const effectsTackled = items.reduce(
+      (count, item) => count + (item.relatedSusafEffects?.length || 0),
+      0
+    )
+
+    const totalItems = items.length || 1
+    const completedItems = items.filter((item) => item.status === "Done").length
+    const progress = Math.round((completedItems / totalItems) * 100)
+
+    return {
+      progress,
+      sustainabilityScore,
+      previousScore,
+      effectsTackled,
+    }
+  }, [sprint, items, previousSprint])
 
   const [formData, setFormData] = useState({
     goalMet: "Partially",
@@ -125,10 +186,19 @@ export default function Retrospective() {
         <h1 className="text-2xl font-bold mb-6">Sprint Retrospective – Sustainability Review</h1>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8 p-4 bg-gray-50 rounded-md">
-          <Stat label="Overall Progress" value={`${sprint?.progress}%`} color="gray-800" />
-          <Stat label="Sustainability Score" value={`${sprint?.sustainabilityScore} ↑`} />
-          <Stat label="Previous Score" value={sprint?.previousScore} />
-          <Stat label="Effects Tackled" value={sprint?.effectsTackled} />
+          <Stat label="Overall Progress" value={`${metrics.progress}%`} color="gray-800" />
+          <Stat
+            label="Sustainability Score"
+            value={metrics.sustainabilityScore}
+            comparison={metrics.previousScore}
+            direction={metrics.sustainabilityScore >= metrics.previousScore ? "up" : "down"}
+          />
+          <Stat
+            label="Previous Sprint"
+            value={previousSprint ? previousSprint.name : "None"}
+            subValue={metrics.previousScore ? `${metrics.previousScore} points` : "N/A"}
+          />
+          <Stat label="Effects Tackled" value={metrics.effectsTackled} />
         </div>
 
         {/* Sprint Goal */}
@@ -191,13 +261,36 @@ export default function Retrospective() {
 }
 
 // 🔹 Reusable components
-function Stat({ label, value, color = "gray-400" }: { label: string; value: any; color?: string }) {
+function Stat({
+  label,
+  value,
+  color = "emerald-600",
+  comparison,
+  direction,
+  subValue,
+}: {
+  label: string
+  value: any
+  color?: string
+  comparison?: number
+  direction?: "up" | "down"
+  subValue?: string
+}) {
   return (
     <div className="flex items-center gap-3">
       <div className={`h-3 w-3 rounded-full bg-${color}`}></div>
       <div>
         <div className="text-sm font-medium">{label}</div>
-        <div className="text-sm text-gray-500">{value}</div>
+        <div className="flex items-center">
+          <span className="text-lg font-semibold">{value}</span>
+          {direction && (
+            <span className={`ml-2 text-sm ${direction === "up" ? "text-emerald-600" : "text-red-600"}`}>
+              {direction === "up" ? "↑" : "↓"}
+              {comparison !== undefined && ` ${Math.abs(Number(value) - comparison)}`}
+            </span>
+          )}
+        </div>
+        {subValue && <div className="text-xs text-gray-500">{subValue}</div>}
       </div>
     </div>
   )

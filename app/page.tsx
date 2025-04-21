@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { ArrowRight, BarChart3, CheckCircle, ListTodo, Plus } from "lucide-react"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -10,7 +10,7 @@ import { useSprintContext } from "@/components/sprint-context"
 import { useProjectContext } from "@/components/project-context"
 import { useRouter } from "next/navigation"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { getAllSprints, useSprintData, useItemsData } from "@/lib/axiosInstance"
+import { getAllSprints, useSprintData, useItemsData, getAllBacklogItems, getAllItems } from "@/lib/axiosInstance"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
 import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart"
 import {
@@ -25,7 +25,6 @@ import {
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { useState } from "react"
 import { useToast } from "@/hooks/use-toast"
 import LandingPage from "./landing-page/page"
 
@@ -43,9 +42,28 @@ export default function Dashboard() {
     description: "",
   })
 
- 
-
   const [projectSprints, setProjectSprints] = useState<any[]>([])
+  const [allBacklogItems, setAllBacklogItems] = useState<any[]>([])
+  const [previousSprintItems, setPreviousSprintItems] = useState<any[]>([])
+
+  // Get the selected sprint data
+  const { data: sprint, loading: sprintLoading } = useSprintData(selectedSprintId, selectedProjectId)
+
+  // Get items for the selected sprint
+  const { data: items, loading: itemsLoading } = useItemsData(sprint?.id || "", selectedProjectId)
+
+  // Define the previousSprint function BEFORE using it in any hooks
+  const getPreviousSprintData = () => {
+    if (!sprint || !projectSprints.length) return null;
+    const currentIndex = projectSprints.findIndex((s) => s.id === sprint.id)
+    if (currentIndex > 0) {
+      return projectSprints[currentIndex - 1]
+    }
+    return null
+  }
+
+  // Initialize previousSprint here, before any hooks that use it
+  const previousSprint = useMemo(() => getPreviousSprintData(), [sprint, projectSprints]);
 
   useEffect(() => {
     if (!selectedProjectId) return
@@ -61,12 +79,39 @@ export default function Dashboard() {
   
     fetchSprints()
   }, [selectedProjectId])
-  
-  // Get the selected sprint data
-  const { data: sprint, loading: sprintLoading } = useSprintData(selectedSprintId, selectedProjectId)
 
-  // Get items for the selected sprint
-  const { data: items, loading: itemsLoading } = useItemsData(sprint?.id || "", selectedProjectId)
+  useEffect(() => {
+    if (!selectedProjectId) return;
+  
+    const fetchAllBacklogItems = async () => {
+      try {
+        const items = await getAllBacklogItems();
+        const projectItems = items.filter(item => item.projectId === selectedProjectId);
+        setAllBacklogItems(projectItems);
+      } catch (error) {
+        console.error('Failed to fetch backlog items:', error);
+      }
+    };
+  
+    fetchAllBacklogItems();
+  }, [selectedProjectId])
+
+  useEffect(() => {
+    if (!previousSprint || !previousSprint.id) return;
+  
+    const fetchPreviousSprintItems = async () => {
+      try {
+        const allItems = await getAllItems();
+        // Filter items that belong to the previous sprint
+        const filteredItems = allItems.filter(item => previousSprint.items.includes(item.id));
+        setPreviousSprintItems(filteredItems);
+      } catch (error) {
+        console.error('Failed to fetch previous sprint items:', error);
+      }
+    };
+  
+    fetchPreviousSprintItems();
+  }, [previousSprint]);
 
   // Calculate metrics based on items
   const metrics = useMemo(() => {
@@ -75,6 +120,7 @@ export default function Dashboard() {
         sustainablePBIs: 0,
         teamVelocity: 0,
         completionRate: 0,
+        sprintProgress: 0,
       }
 
     const totalItems = items.length
@@ -89,17 +135,28 @@ export default function Dashboard() {
       sustainablePBIs: totalItems > 0 ? Math.round((sustainableItems / totalItems) * 100) : 0,
       teamVelocity: completedStoryPoints,
       completionRate: totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0,
+      sprintProgress: totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0,
     }
   }, [items])
 
   // Prepare data for the sustainability trend chart
   const trendChartData = useMemo(() => {
-    return projectSprints.map((sprint: { name: string; sustainabilityScore: any; previousScore: any }) => ({
-      name: sprint.name.split("#")[1] ? `Sprint ${sprint.name.split("#")[1]}` : sprint.name,
-      score: sprint.sustainabilityScore,
-      previousScore: sprint.previousScore,
-    }))
-  }, [projectSprints])
+    return projectSprints.map((sprint, index) => {
+      // Find the previous sprint's score (if any)
+      const previousScore = index > 0 ? projectSprints[index - 1].sustainabilityScore : 0;
+      
+      // Create a readable name for the sprint
+      const sprintName = sprint.name.split("#")[1] 
+        ? `Sprint ${sprint.name.split("#")[1]}` 
+        : sprint.name;
+      
+      return {
+        name: sprintName,
+        score: sprint.sustainabilityScore || 0,
+        previousScore: previousScore || 0,
+      };
+    });
+  }, [projectSprints]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -276,16 +333,16 @@ export default function Dashboard() {
     setSelectedSprintId(sprintId)
   }
 
-  // Get previous sprint data for comparison
-  const getPreviousSprintData = () => {
-    const currentIndex = projectSprints.findIndex((s) => s.id === sprint?.id)
-    if (currentIndex > 0) {
-      return projectSprints[currentIndex - 1]
-    }
-    return null
+  // Function to calculate the actual sustainability score from items
+  function calculateSustainabilityScore(sprintItems: any[], allItems: any[]) {
+    // Filter items that belong to this sprint
+    const items = allItems.filter(item => sprintItems.includes(item.id));
+    
+    // Calculate total sustainability points from completed items
+    return items
+      .filter(item => item.status === "Done")
+      .reduce((sum, item) => sum + (item.sustainabilityPoints || 0), 0);
   }
-
-  const previousSprint = getPreviousSprintData()
 
   return (
     <div className="container mx-auto py-6 px-4">
@@ -308,7 +365,7 @@ export default function Dashboard() {
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="text-center">
                     <div className="text-4xl font-bold">{metrics.sustainablePBIs}%</div>
-                    <div className="text-sm text-muted-foreground">PBIs Related to Sustainability</div>
+                    <div className="text-sm text-muted-foreground">PBIs Related <br></br> to Sustainability</div>
                   </div>
                 </div>
                 <svg className="h-full w-full" viewBox="0 0 100 100">
@@ -331,167 +388,53 @@ export default function Dashboard() {
 
           <Card>
             <CardHeader>
-              <CardTitle>PBIs by SuSAF Dimension</CardTitle>
+              <CardTitle>Sprint Sustainability Trend</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="h-48 space-y-2">
-                {items && (
-                  <>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="h-3 w-3 rounded-full bg-blue-500"></div>
-                        <span className="text-sm">
-                          Technical ({items.filter((t) => t.susafCategory === "Technical").length})
-                        </span>
-                      </div>
-                      <div className="h-6 w-full max-w-[200px] rounded-full bg-blue-100">
-                        <div
-                          className="h-full rounded-full bg-blue-500"
-                          style={{
-                            width: `${
-                              items.length > 0
-                                ? (items.filter((t) => t.susafCategory === "Technical").length / items.length) * 100
-                                : 0
-                            }%`,
-                          }}
-                        ></div>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="h-3 w-3 rounded-full bg-blue-500"></div>
-                        <span className="text-sm">
-                          Human ({items.filter((t) => t.susafCategory === "Human").length})
-                        </span>
-                      </div>
-                      <div className="h-6 w-full max-w-[200px] rounded-full bg-blue-100">
-                        <div
-                          className="h-full rounded-full bg-blue-500"
-                          style={{
-                            width: `${
-                              items.length > 0
-                                ? (items.filter((t) => t.susafCategory === "Human").length / items.length) * 100
-                                : 0
-                            }%`,
-                          }}
-                        ></div>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="h-3 w-3 rounded-full bg-blue-500"></div>
-                        <span className="text-sm">
-                          Environmental ({items.filter((t) => t.susafCategory === "Environmental").length})
-                        </span>
-                      </div>
-                      <div className="h-6 w-full max-w-[200px] rounded-full bg-blue-100">
-                        <div
-                          className="h-full rounded-full bg-blue-500"
-                          style={{
-                            width: `${
-                              items.length > 0
-                                ? (items.filter((t) => t.susafCategory === "Environmental").length / items.length) * 100
-                                : 0
-                            }%`,
-                          }}
-                        ></div>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="h-3 w-3 rounded-full bg-blue-500"></div>
-                        <span className="text-sm">
-                          Social ({items.filter((t) => t.susafCategory === "Social").length})
-                        </span>
-                      </div>
-                      <div className="h-6 w-full max-w-[200px] rounded-full bg-blue-100">
-                        <div
-                          className="h-full rounded-full bg-blue-500"
-                          style={{
-                            width: `${
-                              items.length > 0
-                                ? (items.filter((t) => t.susafCategory === "Social").length / items.length) * 100
-                                : 0
-                            }%`,
-                          }}
-                        ></div>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="h-3 w-3 rounded-full bg-blue-500"></div>
-                        <span className="text-sm">
-                          Economical ({items.filter((t) => t.susafCategory === "Economical").length})
-                        </span>
-                      </div>
-                      <div className="h-6 w-full max-w-[200px] rounded-full bg-blue-100">
-                        <div
-                          className="h-full rounded-full bg-blue-500"
-                          style={{
-                            width: `${
-                              items.length > 0
-                                ? (items.filter((t) => t.susafCategory === "Economical").length / items.length) * 100
-                                : 0
-                            }%`,
-                          }}
-                        ></div>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
+            <CardContent className="h-[250px]">
+              <ChartContainer
+                config={{
+                  score: {
+                    label: "Sustainability Score",
+                    color: "#10b981",
+                  },
+                  previousScore: {
+                    label: "Previous Score",
+                    color: "#94a3b8",
+                  },
+                }}
+                className="h-full"
+              >
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={trendChartData} margin={{ top: 10, right: 20, left: 10, bottom: 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip content={<ChartTooltipContent />} />
+                    <Legend />
+                    <Line
+                      type="monotone"
+                      dataKey="score"
+                      stroke="var(--color-score)"
+                      strokeWidth={2}
+                      dot={{ r: 4 }}
+                      activeDot={{ r: 6 }}
+                      name="Sustainability Score"
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="previousScore"
+                      stroke="var(--color-previousScore)"
+                      strokeWidth={2}
+                      strokeDasharray="5 5"
+                      dot={{ r: 4 }}
+                      name="Previous Score"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </ChartContainer>
             </CardContent>
           </Card>
         </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Sprint Sustainability Trend</CardTitle>
-          </CardHeader>
-          <CardContent className="h-[300px]">
-            <ChartContainer
-              config={{
-                score: {
-                  label: "Sustainability Score",
-                  color: "#10b981",
-                },
-                previousScore: {
-                  label: "Previous Score",
-                  color: "#94a3b8",
-                },
-              }}
-              className="h-full"
-            >
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={trendChartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip content={<ChartTooltipContent />} />
-                  <Legend />
-                  <Line
-                    type="monotone"
-                    dataKey="score"
-                    stroke="var(--color-score)"
-                    strokeWidth={2}
-                    dot={{ r: 4 }}
-                    activeDot={{ r: 6 }}
-                    name="Sustainability Score"
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="previousScore"
-                    stroke="var(--color-previousScore)"
-                    strokeWidth={2}
-                    strokeDasharray="5 5"
-                    dot={{ r: 4 }}
-                    name="Previous Score"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </ChartContainer>
-          </CardContent>
-        </Card>
 
         <Card>
           <CardHeader>
@@ -503,43 +446,104 @@ export default function Dashboard() {
                 <thead>
                   <tr className="border-b">
                     <th className="py-3 text-left font-medium">Metric</th>
-                    <th className="py-3 text-left font-medium">Current</th>
-                    <th className="py-3 text-left font-medium">Previous</th>
+                    <th className="py-3 text-left font-medium">{sprint?.name || "Current"}</th>
+                    <th className="py-3 text-left font-medium">{previousSprint?.name || "Previous"}</th>
                     <th className="py-3 text-left font-medium">Change</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr className="border-b">
+                    <td className="py-3">Sustainability Score</td>
+                    <td className="py-3">{sprint?.sustainabilityScore || 0} points</td>
+                    <td className="py-3">
+                      {previousSprint?.sustainabilityScore != null ? `${previousSprint.sustainabilityScore} points` : "N/A"}
+                    </td>
+                    <td className="py-3">
+                      {previousSprint?.sustainabilityScore != null ? (
+                        <span className={sprint.sustainabilityScore >= previousSprint.sustainabilityScore ? "text-emerald-600" : "text-red-600"}>
+                          {sprint.sustainabilityScore >= previousSprint.sustainabilityScore ? "↑" : "↓"} 
+                          {Math.abs(sprint.sustainabilityScore - previousSprint.sustainabilityScore)} points
+                        </span>
+                      ) : "N/A"}
+                    </td>
+                  </tr>
+                  <tr className="border-b">
                     <td className="py-3">Sustainable PBIs</td>
                     <td className="py-3">{metrics.sustainablePBIs}%</td>
-                    <td className="py-3">{previousSprint ? previousSprint.sustainabilityScore : "N/A"}</td>
-                    <td className="py-3 text-emerald-600">
-                      {previousSprint
-                        ? `${metrics.sustainablePBIs > previousSprint.sustainabilityScore ? "↑" : "↓"} 
-                        ${Math.abs(metrics.sustainablePBIs - previousSprint.sustainabilityScore)}%`
-                        : "N/A"}
+                    <td className="py-3">
+                      {previousSprintItems.length > 0 ? (
+                        (() => {
+                          const prevSustainableCount = previousSprintItems.filter(item => item.sustainable).length;
+                          return `${Math.round((prevSustainableCount / previousSprintItems.length) * 100)}%`;
+                        })()
+                      ) : "N/A"}
+                    </td>
+                    <td className="py-3">
+                      {previousSprintItems.length > 0 ? (
+                        (() => {
+                          const prevSustainableCount = previousSprintItems.filter(item => item.sustainable).length;
+                          const prevPercentage = Math.round((prevSustainableCount / previousSprintItems.length) * 100);
+                          const change = metrics.sustainablePBIs - prevPercentage;
+                          return (
+                            <span className={change >= 0 ? "text-emerald-600" : "text-red-600"}>
+                              {change >= 0 ? "↑" : "↓"} {Math.abs(change)}%
+                            </span>
+                          );
+                        })()
+                      ) : "N/A"}
                     </td>
                   </tr>
                   <tr className="border-b">
                     <td className="py-3">Team Velocity</td>
                     <td className="py-3">{metrics.teamVelocity} points</td>
-                    <td className="py-3">{previousSprint ? `${previousSprint.progress} points` : "N/A"}</td>
-                    <td className="py-3 text-emerald-600">
-                      {previousSprint
-                        ? `${metrics.teamVelocity > previousSprint.progress ? "↑" : "↓"} 
-                        ${Math.abs(metrics.teamVelocity - previousSprint.progress)}`
-                        : "N/A"}
+                    <td className="py-3">
+                      {previousSprintItems.length > 0 ? (
+                        (() => {
+                          const prevCompletedItems = previousSprintItems.filter(item => item.status === "Done");
+                          const prevVelocity = prevCompletedItems.reduce((sum, item) => sum + (item.storyPoints || 0), 0);
+                          return `${prevVelocity} points`;
+                        })()
+                      ) : "N/A"}
+                    </td>
+                    <td className="py-3">
+                      {previousSprintItems.length > 0 ? (
+                        (() => {
+                          const prevCompletedItems = previousSprintItems.filter(item => item.status === "Done");
+                          const prevVelocity = prevCompletedItems.reduce((sum, item) => sum + (item.storyPoints || 0), 0);
+                          const change = metrics.teamVelocity - prevVelocity;
+                          return (
+                            <span className={change >= 0 ? "text-emerald-600" : "text-red-600"}>
+                              {change >= 0 ? "↑" : "↓"} {Math.abs(change)} points
+                            </span>
+                          );
+                        })()
+                      ) : "N/A"}
                     </td>
                   </tr>
                   <tr>
                     <td className="py-3">Completion Rate</td>
                     <td className="py-3">{metrics.completionRate}%</td>
-                    <td className="py-3">{previousSprint ? `${previousSprint.progress}%` : "N/A"}</td>
-                    <td className="py-3 text-emerald-600">
-                      {previousSprint
-                        ? `${metrics.completionRate > previousSprint.progress ? "↑" : "↓"} 
-                        ${Math.abs(metrics.completionRate - previousSprint.progress)}%`
-                        : "N/A"}
+                    <td className="py-3">
+                      {previousSprintItems.length > 0 ? (
+                        (() => {
+                          const prevCompletedItems = previousSprintItems.filter(item => item.status === "Done").length;
+                          return `${Math.round((prevCompletedItems / previousSprintItems.length) * 100)}%`;
+                        })()
+                      ) : "N/A"}
+                    </td>
+                    <td className="py-3">
+                      {previousSprintItems.length > 0 ? (
+                        (() => {
+                          const prevCompletedItems = previousSprintItems.filter(item => item.status === "Done").length;
+                          const prevRate = Math.round((prevCompletedItems / previousSprintItems.length) * 100);
+                          const change = metrics.completionRate - prevRate;
+                          return (
+                            <span className={change >= 0 ? "text-emerald-600" : "text-red-600"}>
+                              {change >= 0 ? "↑" : "↓"} {Math.abs(change)}%
+                            </span>
+                          );
+                        })()
+                      ) : "N/A"}
                     </td>
                   </tr>
                 </tbody>
@@ -555,9 +559,9 @@ export default function Dashboard() {
               <BarChart3 className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{sprint?.progress || 0}%</div>
+              <div className="text-2xl font-bold">{metrics.sprintProgress}%</div>
               <div className="mt-4 h-2 w-full rounded-full bg-muted">
-                <div className="h-2 rounded-full bg-emerald-500" style={{ width: `${sprint?.progress || 0}%` }}></div>
+                <div className="h-2 rounded-full bg-emerald-500" style={{ width: `${metrics.sprintProgress}%` }}></div>
               </div>
               <p className="text-xs text-muted-foreground mt-2">Sprint Goal: {sprint?.goal || "No goal set"}</p>
             </CardContent>
@@ -577,29 +581,93 @@ export default function Dashboard() {
               <CheckCircle className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="flex items-baseline">
-                <div className="text-2xl font-bold">{sprint?.sustainabilityScore || 0}</div>
-                <div className="ml-2 flex items-center text-sm text-emerald-500">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-                    <path
-                      fillRule="evenodd"
-                      d="M12.577 4.878a.75.75 0 01.919-.53l4.78 1.281a.75.75 0 01.531.919l-1.281 4.78a.75.75 0 01-1.449-.387l.81-3.022a19.407 19.407 0 00-5.594 5.203.75.75 0 01-1.139.093L7 10.06l-4.72 4.72a.75.75 0 01-1.06-1.061l5.25-5.25a.75.75 0 011.06 0l3.074 3.073a20.923 20.923 0 015.545-4.931l-3.042-.815a.75.75 0 01-.53-.919z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                  <span>
-                    {sprint && sprint.previousScore
-                      ? `${sprint.sustainabilityScore > sprint.previousScore ? "+" : ""}${
-                          sprint.sustainabilityScore - sprint.previousScore
-                        } from last sprint`
-                      : "No previous data"}
-                  </span>
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground mt-4">
-                Previous Sprint Score: {sprint?.previousScore || "N/A"}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">Effects Tackled: {sprint?.effectsTackled || 0}</p>
+              {sprint ? (
+                <>
+                  <div className="flex items-baseline">
+                    <div className="text-2xl font-bold">
+                      {sprint.sustainabilityScore}
+                    </div>
+                    {previousSprint && (
+                      <div className="ml-2 flex items-center text-sm text-emerald-500">
+                        {(() => {
+                          // Get previous score from the same source as the trend chart
+                          const currentIndex = projectSprints.findIndex(s => s.id === sprint.id);
+                          const previousScore = currentIndex > 0 
+                            ? projectSprints[currentIndex - 1].sustainabilityScore
+                            : 0;
+                          
+                          const difference = sprint.sustainabilityScore - previousScore;
+                          
+                          return (
+                            <>
+                              <svg 
+                                xmlns="http://www.w3.org/2000/svg" 
+                                viewBox="0 0 20 20" 
+                                fill="currentColor" 
+                                className={`h-4 w-4 ${difference >= 0 ? 'text-emerald-500' : 'text-red-500'}`}
+                              >
+                                {difference >= 0 ? (
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M12.577 4.878a.75.75 0 01.919-.53l4.78 1.281a.75.75 0 01.531.919l-1.281 4.78a.75.75 0 01-1.449-.387l.81-3.022a19.407 19.407 0 00-5.594 5.203.75.75 0 01-1.139.093L7 10.06l-4.72 4.72a.75.75 0 01-1.06-1.061l5.25-5.25a.75.75 0 011.06 0l3.074 3.073a20.923 20.923 0 015.545-4.931l-3.042-.815a.75.75 0 01-.53-.919z"
+                                    clipRule="evenodd"
+                                  />
+                                ) : (
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M10 3a.75.75 0 01.75.75v10.638l3.96-4.158a.75.75 0 111.08 1.04l-5.25 5.5a.75.75 0 01-1.08 0l-5.25-5.5a.75.75 0 111.08-1.04l3.96 4.158V3.75A.75.75 0 0110 3z"
+                                    clipRule="evenodd"
+                                  />
+                                )}
+                              </svg>
+                              <span className={difference >= 0 ? 'text-emerald-500' : 'text-red-500'}>
+                                {difference >= 0 ? '+' : ''}{difference} from last sprint
+                              </span>
+                            </>
+                          );
+                        })()}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <p className="text-xs text-muted-foreground mt-4">
+                    Previous Sprint Score: {(() => {
+                      // Get previous score from the same source as the trend chart
+                      const currentIndex = projectSprints.findIndex(s => s.id === sprint.id);
+                      return currentIndex > 0 
+                        ? projectSprints[currentIndex - 1].sustainabilityScore
+                        : "N/A";
+                    })()}
+                  </p>
+                  
+                  <div className="mt-2 flex flex-col gap-1">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-muted-foreground">
+                        Effects Tackled: {
+                          sprint.items
+                            ? items
+                                .filter(item => sprint.items.includes(item.id))
+                                .reduce((count, item) => 
+                                  count + (item.relatedSusafEffects?.length || 0), 0)
+                            : 0
+                        }
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Sustainable Items: {
+                          sprint.items
+                            ? items
+                                .filter(item => 
+                                  sprint.items.includes(item.id) && item.sustainable)
+                                .length
+                            : 0
+                        } of {sprint.items?.length || 0}
+                      </p>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="text-sm text-gray-500">No sprint data available</div>
+              )}
             </CardContent>
             <CardFooter>
               <Link href="/retrospective" className="w-full">
@@ -617,18 +685,18 @@ export default function Dashboard() {
               <ListTodo className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{items?.length || 0}</div>
+              <div className="text-2xl font-bold">{allBacklogItems.length || 0}</div>
               <p className="text-xs text-muted-foreground mt-4">Total Backlog Items</p>
               <div className="mt-2 flex items-center gap-2">
                 <div className="h-2 w-2 rounded-full bg-emerald-500"></div>
                 <p className="text-xs text-muted-foreground">
-                  {items?.filter((t) => t.sustainable).length || 0} Sustainable Items
+                  {allBacklogItems.filter(t => t.sustainable).length || 0} Sustainable Items
                 </p>
               </div>
               <div className="mt-1 flex items-center gap-2">
                 <div className="h-2 w-2 rounded-full bg-gray-400"></div>
                 <p className="text-xs text-muted-foreground">
-                  {items?.filter((t) => !t.sustainable).length || 0} Regular Items
+                  {allBacklogItems.filter(t => !t.sustainable).length || 0} Regular Items
                 </p>
               </div>
             </CardContent>

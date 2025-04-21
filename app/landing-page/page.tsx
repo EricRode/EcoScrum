@@ -44,12 +44,13 @@ export default function LandingPage() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between flex-grow">
                 <span className="text-amber-800 font-medium">New to EcoScrum? Get started quickly:</span>
                 <a 
-                  href="/EcoScrum_User_Manual_1.pdf" 
-                  download 
+                  href="https://drive.google.com/file/d/1uaIvMfqU1hH9VARSO8UDWEmmvFB1LR-1/view?usp=sharing" 
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="mt-2 sm:mt-0 flex items-center bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-md transition-colors"
                 >
                   <FileText className="h-4 w-4 mr-2" />
-                  Download User Manual
+                  View User Manual
                 </a>
               </div>
             </div>
