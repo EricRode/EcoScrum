@@ -194,7 +194,6 @@ export function addItem(item: Omit<Item, "id" | "order">) {
   return axiosInstance.post('/items', item)
     .then(response => {
       const newItem = response.data;
-      
       // If item has a sprint, update sprint data
       if (newItem.sprintId) {
         updateSprintData(newItem.sprintId)
