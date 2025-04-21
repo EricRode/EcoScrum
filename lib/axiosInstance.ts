@@ -562,6 +562,18 @@ return axiosInstance.post(`/susaf/token/${projectId}`, { token })
   });
 }
 
+// Add this function to your existing API functions
+
+// Function to generate items from SusAF
+export function generateSusafItems(projectId: string) {
+  return axiosInstance.post(`/susaf/generate-items/${projectId}`)
+    .then(response => response.data)
+    .catch(error => {
+      console.error('Error generating items from SusAF:', error);
+      throw error;
+    });
+}
+
 import type { PRIORITY_LEVELS, TASK_STATUSES, SusafCategory } from "./constants"
     
 export interface User {

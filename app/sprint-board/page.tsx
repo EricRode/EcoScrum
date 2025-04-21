@@ -249,66 +249,54 @@ export default function SprintBoard() {
   }
 
   const handleDragEnd = (result: any) => {
-    const { destination, source, draggableId } = result
+    const { destination, source, draggableId } = result;
 
     // Dropped outside a droppable area
-    if (!destination) return
+    if (!destination) return;
 
     // Dropped in the same place
-    if (destination.droppableId === source.droppableId && destination.index === source.index) return
+    if (destination.droppableId === source.droppableId && destination.index === source.index) return;
 
     // Find the item being dragged
-    const itemToMove = localItems.find((t) => t.id === draggableId)
-    if (!itemToMove) return
+    const itemToMove = localItems.find((t) => t.id === draggableId);
+    if (!itemToMove) return;
 
-    // Create a new array of items with the updated status and order
-    const updatedItems = localItems.map((item) => {
-      // This is the item we're moving
-      if (item.id === draggableId) {
-        return {
-          ...item,
-          status: destination.droppableId as "To Do" | "In Progress" | "Done",
-          order: destination.index,
-        }
-      }
-
-      // Adjust order of other items in the destination column
-      if (item.status === destination.droppableId && item.id !== draggableId) {
-        if (destination.index <= item.order) {
-          return { ...item, order: item.order + 1 }
-        }
-      }
-
-      // Adjust order of items in the source column if moving between columns
-      if (source.droppableId !== destination.droppableId && item.status === source.droppableId) {
-        if (item.order > source.index) {
-          return { ...item, order: item.order - 1 }
-        }
-      }
-
-      return item
-    })
-
-    // Update local state immediately for responsive UI
-    setLocalItems(updatedItems)
-
-    // Update the database
-    updateItem(draggableId, {
+    // Create a new item with updated status and order
+    const updatedItem = {
       ...itemToMove,
       status: destination.droppableId as "To Do" | "In Progress" | "Done",
-      order: destination.index
-    }).catch((error) => {
-      console.error("Error updating item status:", error)
-      // Revert to original items if there's an error
-      if (items) {
-        setLocalItems([...items])
-      }
-      toast({
-        title: "Error",
-        description: "Failed to update item status.",
-        variant: "destructive",
+      order: destination.index,
+    };
+
+    // Apply the update to database first
+    updateItem(draggableId, updatedItem)
+      .then(() => {
+        // Create completely new array of items with the updated item
+        const newItems = localItems.map((item) => 
+          item.id === draggableId 
+            ? updatedItem 
+            : item
+        );
+        
+        // Force React to recognize state change by creating a new array reference
+        setLocalItems([...newItems]);
+        
+        // Log the status change for debugging
+        console.log(`Item ${draggableId} moved to ${destination.droppableId}`);
+        
+        // Reset the itemsUpdatedRef to allow fetching fresh data next time
+        itemsUpdatedRef.current = false;
       })
-    })
+      .catch((error) => {
+        console.error("Error updating item status:", error);
+        
+        // Revert to original items if there's an error
+        toast({
+          title: "Error",
+          description: "Failed to update item status.",
+          variant: "destructive",
+        });
+      });
   }
 
   const handleCompleteSprintClick = async () => {

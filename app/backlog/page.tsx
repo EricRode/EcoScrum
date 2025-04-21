@@ -1,12 +1,12 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Layers, Plus, ArrowUpDown, ArrowUp, ArrowDown, Edit } from "lucide-react"
+import { Layers, Plus, ArrowUpDown, ArrowUp, ArrowDown, Edit, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useBacklogData, addBacklogItem, getAllSprints, getSustainabilityEffects, updateItem, deleteItem, type Item } from "@/lib/axiosInstance"
+import { useBacklogData, addBacklogItem, getAllSprints, getSustainabilityEffects, updateItem, deleteItem, generateSusafItems, type Item } from "@/lib/axiosInstance"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/components/auth-provider"
 import { useSprintContext } from "@/components/sprint-context"
@@ -279,6 +279,44 @@ export default function Backlog() {
     setIsEditDialogOpen(true);
   };
 
+  const handleGenerateSusafItems = async () => {
+    if (!selectedProjectId) {
+      toast({
+        title: "Error",
+        description: "No project selected. Please select a project first.",
+        variant: "destructive",
+      });
+      return;
+    }
+  
+    try {
+      // Show loading toast
+      toast({
+        title: "Generating Items",
+        description: "SusAF is generating new backlog items...",
+      });
+  
+      // Call the API to generate items
+      await generateSusafItems(selectedProjectId);
+      
+      // Show success toast
+      toast({
+        title: "Success",
+        description: "New backlog items have been generated successfully.",
+      });
+      
+      // Reload the page to show the new items
+      window.location.reload();
+    } catch (error) {
+      console.error("Error generating SusAF items:", error);
+      toast({
+        title: "Error",
+        description: "Failed to generate backlog items. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Function to handle sorting
   const requestSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'asc';
@@ -397,6 +435,15 @@ export default function Backlog() {
           <h1 className="text-2xl font-bold">Product Backlog</h1>
         </div>
         <div className="flex items-center gap-4">
+          <Button 
+            variant="outline" 
+            className="hover:bg-amber-50" 
+            onClick={handleGenerateSusafItems}
+          >
+            <Sparkles className="h-4 w-4 mr-2 text-amber-600" />
+            Generate Items
+          </Button>
+          
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <Button className="bg-gray-900 hover:bg-gray-800" onClick={() => setIsAddDialogOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
