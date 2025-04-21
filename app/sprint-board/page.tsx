@@ -5,6 +5,7 @@ import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd"
 import { CheckCircle, MessageCircle, Menu, Plus, Trash2, Calendar, Leaf } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import {  TASK_STATUSES } from "../../lib/constants"
 import {
   Dialog,
   DialogContent,
@@ -51,7 +52,6 @@ export default function SprintBoard() {
   const router = useRouter()
   const { toast } = useToast()
   const { selectedSprintId, setSelectedSprintId } = useSprintContext()
-
   // Get all sprints for the dropdown
   const [allSprints, setAllSprints] = useState<any[]>([]);
   useEffect(() => {
@@ -83,6 +83,7 @@ export default function SprintBoard() {
   const { data: items, loading: itemsLoading } = useItemsData(sprint?.id || "")
 
   // Local state for items to enable immediate UI updates
+  const [susScore, setSusScore] = useState(0);
   const [localItems, setLocalItems] = useState<Item[]>([])
 
   // Ref to track if we've already updated the local items
@@ -90,14 +91,22 @@ export default function SprintBoard() {
 
   // Update local items when the fetched items change - only once when items are loaded
   useEffect(() => {
-    if (items && items.length > 0 && !itemsUpdatedRef.current) {
-      itemsUpdatedRef.current = true
+    if (items && items.length > 0) {
       setLocalItems(items)
-    } else if (items && items.length > 0 && JSON.stringify(items) !== JSON.stringify(localItems)) {
-      // Only update if the items have actually changed (deep comparison)
-      setLocalItems(items)
+      const total = items
+      .filter(item => item.status === TASK_STATUSES[2]) // "Done"
+      .reduce((sum, item) => sum + (item.sustainabilityPoints ?? 0), 0);
+
+    setSusScore(total);
     }
-  }, [items, localItems])
+    console.log("here"+ susScore)
+  }, [items])
+
+  const calculateSusScore = (items: typeof localItems) => {
+    return items
+      .filter(item => item.status === "Done")
+      .reduce((sum, item) => sum + (item.sustainabilityPoints ?? 0), 0)
+  }
 
   // Use useMemo to ensure stable reference for users
   const [allUsers, setAllUsers] = useState<User[]>([])
@@ -634,15 +643,22 @@ export default function SprintBoard() {
 
         <div className="mb-6 p-4 bg-gray-50 rounded-md">
           <h2 className="text-lg font-medium mb-2">Sprint Sustainability Status</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="p-4 bg-gray-100 rounded-md">
               <div className="text-sm font-medium">Sprint Sustainability Goal:</div>
               <div>{sprint?.goal}</div>
             </div>
             <div className="p-4 bg-gray-100 rounded-md">
-              <div className="text-sm font-medium">Current Sustainability Score:</div>
+              <div className="text-sm font-medium">Goal Sustainability Score:</div>
               <div className="flex items-center">
                 <span className="text-xl font-bold text-emerald-600">{sprint?.sustainabilityScore || 0}</span>
+                <span className="text-sm text-gray-500 ml-2">points</span>
+              </div>
+            </div>
+            <div className="p-4 bg-gray-100 rounded-md">
+              <div className="text-sm font-medium">Current Sustainability Score:</div>
+              <div className="flex items-center">
+                <span className="text-xl font-bold text-emerald-600">{susScore}</span>
                 <span className="text-sm text-gray-500 ml-2">points</span>
               </div>
             </div>
