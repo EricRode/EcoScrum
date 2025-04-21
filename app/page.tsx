@@ -10,8 +10,8 @@ import { useSprintContext } from "@/components/sprint-context"
 import { useProjectContext } from "@/components/project-context"
 import { useRouter } from "next/navigation"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { getAllSprints, useSprintData, useItemsData } from "@/lib/axiosInstance"
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Bar } from "recharts"
+import { getAllSprints, useSprintData, useItemsData, getAllBacklogItems } from "@/lib/axiosInstance"
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
 import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart"
 import {
   Dialog,
@@ -43,7 +43,7 @@ export default function Dashboard() {
   })
 
   const [projectSprints, setProjectSprints] = useState<any[]>([])
-  const [previousSprint, setPreviousSprint] = useState<any>(null)
+  const [allBacklogItems, setAllBacklogItems] = useState<any[]>([])
 
   useEffect(() => {
     if (!selectedProjectId) return
@@ -59,26 +59,28 @@ export default function Dashboard() {
   
     fetchSprints()
   }, [selectedProjectId])
+
+  useEffect(() => {
+    if (!selectedProjectId) return;
+  
+    const fetchAllBacklogItems = async () => {
+      try {
+        const items = await getAllBacklogItems();
+        const projectItems = items.filter(item => item.projectId === selectedProjectId);
+        setAllBacklogItems(projectItems);
+      } catch (error) {
+        console.error('Failed to fetch backlog items:', error);
+      }
+    };
+  
+    fetchAllBacklogItems();
+  }, [selectedProjectId])
   
   // Get the selected sprint data
   const { data: sprint, loading: sprintLoading } = useSprintData(selectedSprintId, selectedProjectId)
 
   // Get items for the selected sprint
   const { data: items, loading: itemsLoading } = useItemsData(sprint?.id || "", selectedProjectId)
-
-  // Find previous sprint when current sprint changes
-  useEffect(() => {
-    if (sprint && projectSprints.length > 0) {
-      // Find the index of the current sprint
-      const currentIndex = projectSprints.findIndex(s => s.id === sprint.id);
-      // If there's a sprint before this one, set it as previous
-      if (currentIndex > 0) {
-        setPreviousSprint(projectSprints[currentIndex - 1]);
-      } else {
-        setPreviousSprint(null); // No previous sprint
-      }
-    }
-  }, [sprint, projectSprints]);
 
   // Calculate metrics based on items
   const metrics = useMemo(() => {
@@ -87,6 +89,7 @@ export default function Dashboard() {
         sustainablePBIs: 0,
         teamVelocity: 0,
         completionRate: 0,
+        sprintProgress: 0,
       }
 
     const totalItems = items.length
@@ -101,6 +104,7 @@ export default function Dashboard() {
       sustainablePBIs: totalItems > 0 ? Math.round((sustainableItems / totalItems) * 100) : 0,
       teamVelocity: completedStoryPoints,
       completionRate: totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0,
+      sprintProgress: totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0,
     }
   }, [items])
 
@@ -109,9 +113,6 @@ export default function Dashboard() {
     return projectSprints.map((sprint, index) => {
       // Find the previous sprint's score (if any)
       const previousScore = index > 0 ? projectSprints[index - 1].sustainabilityScore : 0;
-      
-      // Calculate the difference for the trend indicator
-      const difference = (sprint.sustainabilityScore || 0) - previousScore;
       
       // Create a readable name for the sprint
       const sprintName = sprint.name.split("#")[1] 
@@ -122,7 +123,6 @@ export default function Dashboard() {
         name: sprintName,
         score: sprint.sustainabilityScore || 0,
         previousScore: previousScore || 0,
-        difference: difference,
       };
     });
   }, [projectSprints]);
@@ -302,6 +302,17 @@ export default function Dashboard() {
     setSelectedSprintId(sprintId)
   }
 
+  // Get previous sprint data for comparison
+  const getPreviousSprintData = () => {
+    const currentIndex = projectSprints.findIndex((s) => s.id === sprint?.id)
+    if (currentIndex > 0) {
+      return projectSprints[currentIndex - 1]
+    }
+    return null
+  }
+
+  const previousSprint = getPreviousSprintData()
+
   return (
     <div className="container mx-auto py-6 px-4">
       <div className="space-y-8">
@@ -359,10 +370,6 @@ export default function Dashboard() {
                     label: "Previous Score",
                     color: "#94a3b8",
                   },
-                  difference: {
-                    label: "Difference",
-                    color: "#3b82f6",
-                  }
                 }}
                 className="h-full"
               >
@@ -371,42 +378,14 @@ export default function Dashboard() {
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="name" />
                     <YAxis />
-                    <Tooltip 
-                      content={({ active, payload }) => {
-                        if (active && payload && payload.length) {
-                          const data = payload[0].payload;
-                          return (
-                            <div className="bg-white p-4 rounded border shadow-sm">
-                              <p className="font-medium">{data.name}</p>
-                              <p className="text-sm">Score: {data.score} points</p>
-                              <p className="text-sm">Previous: {data.previousScore} points</p>
-                              <p className={`text-sm font-medium ${data.difference > 0 ? 'text-emerald-600' : data.difference < 0 ? 'text-red-600' : 'text-gray-500'}`}>
-                                Difference: {data.difference > 0 ? '+' : ''}{data.difference} points
-                              </p>
-                            </div>
-                          );
-                        }
-                        return null;
-                      }}
-                    />
+                    <Tooltip content={<ChartTooltipContent />} />
                     <Legend />
                     <Line
                       type="monotone"
                       dataKey="score"
                       stroke="var(--color-score)"
                       strokeWidth={2}
-                      dot={({ payload }) => (
-                        <svg>
-                          <circle 
-                            r={5} 
-                            cx={0} 
-                            cy={0} 
-                            fill={payload.difference > 0 ? "#10b981" : payload.difference < 0 ? "#ef4444" : "#94a3b8"}
-                            stroke="white"
-                            strokeWidth={2}
-                          />
-                        </svg>
-                      )}
+                      dot={{ r: 4 }}
                       activeDot={{ r: 6 }}
                       name="Sustainability Score"
                     />
@@ -419,34 +398,6 @@ export default function Dashboard() {
                       dot={{ r: 4 }}
                       name="Previous Score"
                     />
-                    <Bar
-                      dataKey="difference"
-                      fill="transparent"
-                      barSize={20}
-                      isAnimationActive={false}
-                      shape={({ x, y, width, height, payload }) => {
-                        const fill = payload.difference > 0 ? "#dcfce7" : payload.difference < 0 ? "#fee2e2" : "transparent";
-                        const stroke = payload.difference > 0 ? "#10b981" : payload.difference < 0 ? "#ef4444" : "transparent";
-                        const yPosition = y + (payload.difference > 0 ? height : 0);
-                        const barHeight = Math.abs(height);
-                        
-                        return (
-                          <rect
-                            x={x - width/2}
-                            y={yPosition}
-                            width={width}
-                            height={barHeight}
-                            fill={fill}
-                            fillOpacity={0.2}
-                            stroke={stroke}
-                            strokeWidth={1}
-                            strokeDasharray="2 2"
-                            rx={3}
-                            ry={3}
-                          />
-                        );
-                      }}
-                    />
                   </LineChart>
                 </ResponsiveContainer>
               </ChartContainer>
@@ -456,7 +407,7 @@ export default function Dashboard() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Sprint Comparison</CardTitle>
+            <CardTitle>Detailed Metrics</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -464,12 +415,8 @@ export default function Dashboard() {
                 <thead>
                   <tr className="border-b">
                     <th className="py-3 text-left font-medium">Metric</th>
-                    <th className="py-3 text-left font-medium">
-                      {sprint?.name || "Current Sprint"}
-                    </th>
-                    <th className="py-3 text-left font-medium">
-                      {previousSprint?.name || "No Previous Sprint"}
-                    </th>
+                    <th className="py-3 text-left font-medium">Current</th>
+                    <th className="py-3 text-left font-medium">Previous</th>
                     <th className="py-3 text-left font-medium">Change</th>
                   </tr>
                 </thead>
@@ -477,12 +424,12 @@ export default function Dashboard() {
                   <tr className="border-b">
                     <td className="py-3">Sustainability Score</td>
                     <td className="py-3">{sprint?.sustainabilityScore || 0} points</td>
-                    <td className="py-3">{previousSprint?.sustainabilityScore || "N/A"}</td>
+                    <td className="py-3">{sprint?.previousScore || "N/A"}</td>
                     <td className="py-3">
-                      {previousSprint ? (
-                        <span className={sprint.sustainabilityScore >= previousSprint.sustainabilityScore ? "text-emerald-600" : "text-red-600"}>
-                          {sprint.sustainabilityScore >= previousSprint.sustainabilityScore ? "↑" : "↓"} 
-                          {Math.abs(sprint.sustainabilityScore - previousSprint.sustainabilityScore)} points
+                      {sprint && typeof sprint.previousScore === 'number' ? (
+                        <span className={sprint.sustainabilityScore >= sprint.previousScore ? "text-emerald-600" : "text-red-600"}>
+                          {sprint.sustainabilityScore >= sprint.previousScore ? "↑" : "↓"} 
+                          {Math.abs(sprint.sustainabilityScore - sprint.previousScore)} points
                         </span>
                       ) : "N/A"}
                     </td>
@@ -493,29 +440,28 @@ export default function Dashboard() {
                     <td className="py-3">
                       {previousSprint ? (
                         (() => {
-                          // Get the items from the previous sprint
-                          const prevSprintItems = items.filter(item => 
-                            previousSprint.items.includes(item.id)
-                          );
+                          // Calculate previous sprint's sustainable PBIs percentage
+                          const prevItems = projectSprints.find(s => s.id === previousSprint.id)?.items || [];
+                          if (!prevItems.length) return "N/A";
                           
-                          const prevSustainableCount = prevSprintItems.filter(item => item.sustainable).length;
-                          const prevPercentage = prevSprintItems.length > 0 ? 
-                            Math.round((prevSustainableCount / prevSprintItems.length) * 100) : 0;
-                          
-                          return `${prevPercentage}%`;
+                          const prevSustainableCount = items
+                            .filter(item => prevItems.includes(item.id) && item.sustainable)
+                            .length;
+                          return `${prevItems.length > 0 ? Math.round((prevSustainableCount / prevItems.length) * 100) : 0}%`;
                         })()
                       ) : "N/A"}
                     </td>
                     <td className="py-3">
                       {previousSprint ? (
                         (() => {
-                          const prevSprintItems = items.filter(item => 
-                            previousSprint.items.includes(item.id)
-                          );
+                          const prevItems = projectSprints.find(s => s.id === previousSprint.id)?.items || [];
+                          if (!prevItems.length) return "N/A";
                           
-                          const prevSustainableCount = prevSprintItems.filter(item => item.sustainable).length;
-                          const prevPercentage = prevSprintItems.length > 0 ? 
-                            Math.round((prevSustainableCount / prevSprintItems.length) * 100) : 0;
+                          const prevSustainableCount = items
+                            .filter(item => prevItems.includes(item.id) && item.sustainable)
+                            .length;
+                          const prevPercentage = prevItems.length > 0 ? 
+                            Math.round((prevSustainableCount / prevItems.length) * 100) : 0;
                           
                           const change = metrics.sustainablePBIs - prevPercentage;
                           return (
@@ -533,10 +479,10 @@ export default function Dashboard() {
                     <td className="py-3">
                       {previousSprint ? (
                         (() => {
-                          const prevSprintItems = items.filter(item => 
+                          const prevItems = items.filter(item => 
                             previousSprint.items.includes(item.id) && item.status === "Done"
                           );
-                          const prevVelocity = prevSprintItems.reduce((sum, item) => sum + (item.storyPoints || 0), 0);
+                          const prevVelocity = prevItems.reduce((sum, item) => sum + (item.storyPoints || 0), 0);
                           return `${prevVelocity} points`;
                         })()
                       ) : "N/A"}
@@ -544,10 +490,10 @@ export default function Dashboard() {
                     <td className="py-3">
                       {previousSprint ? (
                         (() => {
-                          const prevSprintItems = items.filter(item => 
+                          const prevItems = items.filter(item => 
                             previousSprint.items.includes(item.id) && item.status === "Done"
                           );
-                          const prevVelocity = prevSprintItems.reduce((sum, item) => sum + (item.storyPoints || 0), 0);
+                          const prevVelocity = prevItems.reduce((sum, item) => sum + (item.storyPoints || 0), 0);
                           const change = metrics.teamVelocity - prevVelocity;
                           return (
                             <span className={change >= 0 ? "text-emerald-600" : "text-red-600"}>
@@ -564,26 +510,19 @@ export default function Dashboard() {
                     <td className="py-3">
                       {previousSprint ? (
                         (() => {
-                          const prevSprintItems = items.filter(item => 
-                            previousSprint.items.includes(item.id)
-                          );
-                          const prevCompleted = prevSprintItems.filter(item => item.status === "Done").length;
-                          const prevRate = prevSprintItems.length > 0 ? 
-                            Math.round((prevCompleted / prevSprintItems.length) * 100) : 0;
-                          
-                          return `${prevRate}%`;
+                          const prevItems = items.filter(item => previousSprint.items.includes(item.id));
+                          const prevCompleted = prevItems.filter(item => item.status === "Done").length;
+                          return `${prevItems.length > 0 ? Math.round((prevCompleted / prevItems.length) * 100) : 0}%`;
                         })()
                       ) : "N/A"}
                     </td>
                     <td className="py-3">
                       {previousSprint ? (
                         (() => {
-                          const prevSprintItems = items.filter(item => 
-                            previousSprint.items.includes(item.id)
-                          );
-                          const prevCompleted = prevSprintItems.filter(item => item.status === "Done").length;
-                          const prevRate = prevSprintItems.length > 0 ? 
-                            Math.round((prevCompleted / prevSprintItems.length) * 100) : 0;
+                          const prevItems = items.filter(item => previousSprint.items.includes(item.id));
+                          const prevCompleted = prevItems.filter(item => item.status === "Done").length;
+                          const prevRate = prevItems.length > 0 ? 
+                            Math.round((prevCompleted / prevItems.length) * 100) : 0;
                           
                           const change = metrics.completionRate - prevRate;
                           return (
@@ -608,9 +547,9 @@ export default function Dashboard() {
               <BarChart3 className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{sprint?.progress || 0}%</div>
+              <div className="text-2xl font-bold">{metrics.sprintProgress}%</div>
               <div className="mt-4 h-2 w-full rounded-full bg-muted">
-                <div className="h-2 rounded-full bg-emerald-500" style={{ width: `${sprint?.progress || 0}%` }}></div>
+                <div className="h-2 rounded-full bg-emerald-500" style={{ width: `${metrics.sprintProgress}%` }}></div>
               </div>
               <p className="text-xs text-muted-foreground mt-2">Sprint Goal: {sprint?.goal || "No goal set"}</p>
             </CardContent>
@@ -670,18 +609,18 @@ export default function Dashboard() {
               <ListTodo className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{items?.length || 0}</div>
+              <div className="text-2xl font-bold">{allBacklogItems.length || 0}</div>
               <p className="text-xs text-muted-foreground mt-4">Total Backlog Items</p>
               <div className="mt-2 flex items-center gap-2">
                 <div className="h-2 w-2 rounded-full bg-emerald-500"></div>
                 <p className="text-xs text-muted-foreground">
-                  {items?.filter((t) => t.sustainable).length || 0} Sustainable Items
+                  {allBacklogItems.filter(t => t.sustainable).length || 0} Sustainable Items
                 </p>
               </div>
               <div className="mt-1 flex items-center gap-2">
                 <div className="h-2 w-2 rounded-full bg-gray-400"></div>
                 <p className="text-xs text-muted-foreground">
-                  {items?.filter((t) => !t.sustainable).length || 0} Regular Items
+                  {allBacklogItems.filter(t => !t.sustainable).length || 0} Regular Items
                 </p>
               </div>
             </CardContent>
