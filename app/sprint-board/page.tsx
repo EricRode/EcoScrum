@@ -289,7 +289,7 @@ export default function SprintBoard() {
         
         // Force React to recognize state change by creating a new array reference
         setLocalItems([...newItems]);
-        
+        calculateSusScore(newItems)
         // Log the status change for debugging
         console.log(`Item ${draggableId} moved to ${destination.droppableId}`);
         
