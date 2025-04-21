@@ -259,55 +259,46 @@ export default function SprintBoard() {
 
   const handleDragEnd = (result: any) => {
     const { destination, source, draggableId } = result;
-
-    // Dropped outside a droppable area
+  
     if (!destination) return;
-
-    // Dropped in the same place
     if (destination.droppableId === source.droppableId && destination.index === source.index) return;
-
-    // Find the item being dragged
+  
     const itemToMove = localItems.find((t) => t.id === draggableId);
     if (!itemToMove) return;
-
-    // Create a new item with updated status and order
+  
     const updatedItem = {
       ...itemToMove,
       status: destination.droppableId as "To Do" | "In Progress" | "Done",
       order: destination.index,
     };
-
-    // Apply the update to database first
+  
+    // 👉 Optimistically update UI
+    const newItems = localItems.map((item) =>
+      item.id === draggableId ? updatedItem : item
+    );
+  
+    setLocalItems(newItems); 
+    setSusScore(calculateSusScore(newItems));
+  
+    // Then update backend
     updateItem(draggableId, updatedItem)
       .then(() => {
-        // Create completely new array of items with the updated item
-        const newItems = localItems.map((item) => 
-          item.id === draggableId 
-            ? updatedItem 
-            : item
-        );
-        
-        // Force React to recognize state change by creating a new array reference
-        setLocalItems([...newItems]);
-        calculateSusScore(newItems)
-        // Log the status change for debugging
-        console.log(`Item ${draggableId} moved to ${destination.droppableId}`);
-        
-        // Reset the itemsUpdatedRef to allow fetching fresh data next time
         itemsUpdatedRef.current = false;
+        console.log(`Item ${draggableId} moved to ${destination.droppableId}`);
       })
       .catch((error) => {
         console.error("Error updating item status:", error);
-        
-        // Revert to original items if there's an error
         toast({
           title: "Error",
           description: "Failed to update item status.",
           variant: "destructive",
         });
+  
+        setLocalItems(localItems);
+        calculateSusScore(localItems);
       });
-  }
-
+  };
+  
   const handleCompleteSprintClick = async () => {
     if (!selectedSprintId) return // Optionally guard against undefined
     await completeSprintAndRedirect(selectedSprintId)
